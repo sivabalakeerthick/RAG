@@ -1,0 +1,264 @@
+﻿Collecting fastapi==0.115.0 (from -r requirements.txt (line 6))
+  Using cached fastapi-0.115.0-py3-none-any.whl.metadata (27 kB)
+Collecting uvicorn==0.30.6 (from uvicorn[standard]==0.30.6->-r requirements.txt (line 7))
+  Using cached uvicorn-0.30.6-py3-none-any.whl.metadata (6.6 kB)
+Collecting python-multipart==0.0.12 (from -r requirements.txt (line 8))
+  Using cached python_multipart-0.0.12-py3-none-any.whl.metadata (1.9 kB)
+Collecting pydantic==2.13.5 (from -r requirements.txt (line 11))
+  Using cached pydantic-2.13.5-py3-none-any.whl.metadata (110 kB)
+Requirement already satisfied: pydantic-settings==2.15.0 in c:\users\2407014\appdata\roaming\python\python313\site-packages (from -r requirements.txt (line 12)) (2.15.0)
+Collecting sqlalchemy==2.0.35 (from sqlalchemy[asyncio]==2.0.35->-r requirements.txt (line 15))
+  Using cached SQLAlchemy-2.0.35-py3-none-any.whl.metadata (9.6 kB)
+Collecting asyncpg==0.31.0 (from -r requirements.txt (line 16))
+  Using cached asyncpg-0.31.0-cp313-cp313-win_amd64.whl.metadata (4.5 kB)
+Requirement already satisfied: chromadb==1.5.9 in c:\users\2407014\appdata\roaming\python\python313\site-packages (from -r requirements.txt (line 19)) (1.5.9)
+Requirement already satisfied: langchain-chroma==1.1.0 in c:\users\2407014\appdata\roaming\python\python313\site-packages (from -r requirements.txt (line 20)) (1.1.0)
+Collecting langchain==1.4.0 (from -r requirements.txt (line 23))
+  Using cached langchain-1.4.0-py3-none-any.whl.metadata (6.2 kB)
+Collecting langchain-core==1.6.2 (from -r requirements.txt (line 24))
+  Using cached langchain_core-1.6.2-py3-none-any.whl.metadata (4.8 kB)
+Requirement already satisfied: langchain-community==0.4.2 in c:\users\2407014\appdata\roaming\python\python313\site-packages (from -r requirements.txt (line 25)) (0.4.2)
+Requirement already satisfied: langchain-text-splitters==1.1.2 in c:\users\2407014\appdata\roaming\python\python313\site-packages (from -r requirements.txt (line 26)) (1.1.2)
+Collecting langchain-google-genai==4.4.0 (from -r requirements.txt (line 27))
+  Using cached langchain_google_genai-4.4.0-py3-none-any.whl.metadata (2.7 kB)
+Collecting langchain-groq==1.1.3 (from -r requirements.txt (line 28))
+  Using cached langchain_groq-1.1.3-py3-none-any.whl.metadata (2.9 kB)
+Collecting google-genai==2.22.0 (from -r requirements.txt (line 31))
+  Using cached google_genai-2.22.0-py3-none-any.whl.metadata (56 kB)
+Collecting groq==0.37.1 (from -r requirements.txt (line 32))
+  Using cached groq-0.37.1-py3-none-any.whl.metadata (16 kB)
+Collecting PyMuPDF==1.26.1 (from -r requirements.txt (line 35))
+  Using cached pymupdf-1.26.1-cp39-abi3-win_amd64.whl.metadata (3.4 kB)
+Collecting python-docx==1.1.2 (from -r requirements.txt (line 36))
+  Using cached python_docx-1.1.2-py3-none-any.whl.metadata (2.0 kB)
+Collecting openpyxl==3.1.5 (from -r requirements.txt (line 37))
+  Using cached openpyxl-3.1.5-py2.py3-none-any.whl.metadata (2.5 kB)
+Collecting xlrd==2.0.1 (from -r requirements.txt (line 38))
+  Using cached xlrd-2.0.1-py2.py3-none-any.whl.metadata (3.4 kB)
+Requirement already satisfied: rank-bm25==0.2.2 in c:\users\2407014\appdata\roaming\python\python313\site-packages (from -r requirements.txt (line 41)) (0.2.2)
+Collecting tiktoken==0.7.0 (from -r requirements.txt (line 42))
+  Using cached tiktoken-0.7.0.tar.gz (33 kB)
+  Installing build dependencies: started
+  Installing build dependencies: finished with status 'done'
+  Getting requirements to build wheel: started
+  Getting requirements to build wheel: finished with status 'done'
+  Preparing metadata (pyproject.toml): started
+  Preparing metadata (pyproject.toml): finished with status 'done'
+Requirement already satisfied: httpx==0.28.1 in c:\program files\python313\lib\site-packages (from -r requirements.txt (line 45)) (0.28.1)
+Collecting python-jose==3.3.0 (from python-jose[cryptography]==3.3.0->-r requirements.txt (line 48))
+  Using cached python_jose-3.3.0-py2.py3-none-any.whl.metadata (5.4 kB)
+Collecting starlette<0.39.0,>=0.37.2 (from fastapi==0.115.0->-r requirements.txt (line 6))
+  Using cached starlette-0.38.6-py3-none-any.whl.metadata (6.0 kB)
+Requirement already satisfied: typing-extensions>=4.8.0 in c:\program files\python313\lib\site-packages (from fastapi==0.115.0->-r requirements.txt (line 6)) (4.15.0)
+Requirement already satisfied: annotated-types>=0.6.0 in c:\program files\python313\lib\site-packages (from pydantic==2.13.5->-r requirements.txt (line 11)) (0.7.0)
+Collecting pydantic-core==2.46.5 (from pydantic==2.13.5->-r requirements.txt (line 11))
+  Using cached pydantic_core-2.46.5-cp313-cp313-win_amd64.whl.metadata (6.7 kB)
+Requirement already satisfied: typing-inspection>=0.4.2 in c:\users\2407014\appdata\roaming\python\python313\site-packages (from pydantic==2.13.5->-r requirements.txt (line 11)) (0.4.4)
+Requirement already satisfied: click>=7.0 in c:\users\2407014\appdata\roaming\python\python313\site-packages (from uvicorn==0.30.6->uvicorn[standard]==0.30.6->-r requirements.txt (line 7)) (8.4.2)
+Requirement already satisfied: h11>=0.8 in c:\program files\python313\lib\site-packages (from uvicorn==0.30.6->uvicorn[standard]==0.30.6->-r requirements.txt (line 7)) (0.16.0)
+Requirement already satisfied: python-dotenv>=0.21.0 in c:\program files\python313\lib\site-packages (from pydantic-settings==2.15.0->-r requirements.txt (line 12)) (1.0.1)
+Requirement already satisfied: build>=1.0.3 in c:\users\2407014\appdata\roaming\python\python313\site-packages (from chromadb==1.5.9->-r requirements.txt (line 19)) (1.5.0)
+Requirement already satisfied: pybase64>=1.4.1 in c:\users\2407014\appdata\roaming\python\python313\site-packages (from chromadb==1.5.9->-r requirements.txt (line 19)) (1.5.0)
+Requirement already satisfied: numpy>=1.22.5 in c:\users\2407014\appdata\roaming\python\python313\site-packages (from chromadb==1.5.9->-r requirements.txt (line 19)) (2.5.2)
+Requirement already satisfied: onnxruntime>=1.14.1 in c:\users\2407014\appdata\roaming\python\python313\site-packages (from chromadb==1.5.9->-r requirements.txt (line 19)) (1.29.0)
+Requirement already satisfied: opentelemetry-api>=1.2.0 in c:\users\2407014\appdata\roaming\python\python313\site-packages (from chromadb==1.5.9->-r requirements.txt (line 19)) (1.44.0)
+Requirement already satisfied: opentelemetry-exporter-otlp-proto-grpc>=1.2.0 in c:\users\2407014\appdata\roaming\python\python313\site-packages (from chromadb==1.5.9->-r requirements.txt (line 19)) (1.44.0)
+Requirement already satisfied: opentelemetry-sdk>=1.2.0 in c:\users\2407014\appdata\roaming\python\python313\site-packages (from chromadb==1.5.9->-r requirements.txt (line 19)) (1.44.0)
+Requirement already satisfied: tokenizers>=0.13.2 in c:\users\2407014\appdata\roaming\python\python313\site-packages (from chromadb==1.5.9->-r requirements.txt (line 19)) (0.22.2)
+Requirement already satisfied: pypika>=0.48.9 in c:\users\2407014\appdata\roaming\python\python313\site-packages (from chromadb==1.5.9->-r requirements.txt (line 19)) (0.51.1)
+Requirement already satisfied: tqdm>=4.65.0 in c:\program files\python313\lib\site-packages (from chromadb==1.5.9->-r requirements.txt (line 19)) (4.67.3)
+Requirement already satisfied: overrides>=7.3.1 in c:\users\2407014\appdata\roaming\python\python313\site-packages (from chromadb==1.5.9->-r requirements.txt (line 19)) (7.7.0)
+Requirement already satisfied: importlib-resources in c:\users\2407014\appdata\roaming\python\python313\site-packages (from chromadb==1.5.9->-r requirements.txt (line 19)) (7.1.0)
+Requirement already satisfied: grpcio>=1.58.0 in c:\users\2407014\appdata\roaming\python\python313\site-packages (from chromadb==1.5.9->-r requirements.txt (line 19)) (1.83.0)
+Requirement already satisfied: bcrypt>=4.0.1 in c:\program files\python313\lib\site-packages (from chromadb==1.5.9->-r requirements.txt (line 19)) (4.2.1)
+Requirement already satisfied: typer>=0.9.0 in c:\users\2407014\appdata\roaming\python\python313\site-packages (from chromadb==1.5.9->-r requirements.txt (line 19)) (0.27.1)
+Requirement already satisfied: kubernetes>=28.1.0 in c:\users\2407014\appdata\roaming\python\python313\site-packages (from chromadb==1.5.9->-r requirements.txt (line 19)) (36.0.3)
+Requirement already satisfied: tenacity>=8.2.3 in c:\users\2407014\appdata\roaming\python\python313\site-packages (from chromadb==1.5.9->-r requirements.txt (line 19)) (9.1.4)
+Requirement already satisfied: pyyaml>=6.0.0 in c:\program files\python313\lib\site-packages (from chromadb==1.5.9->-r requirements.txt (line 19)) (6.0.3)
+Requirement already satisfied: mmh3>=4.0.1 in c:\users\2407014\appdata\roaming\python\python313\site-packages (from chromadb==1.5.9->-r requirements.txt (line 19)) (5.2.1)
+Requirement already satisfied: orjson>=3.9.12 in c:\users\2407014\appdata\roaming\python\python313\site-packages (from chromadb==1.5.9->-r requirements.txt (line 19)) (3.12.0)
+Requirement already satisfied: rich>=10.11.0 in c:\users\2407014\appdata\roaming\python\python313\site-packages (from chromadb==1.5.9->-r requirements.txt (line 19)) (15.0.0)
+Requirement already satisfied: jsonschema>=4.19.0 in c:\users\2407014\appdata\roaming\python\python313\site-packages (from chromadb==1.5.9->-r requirements.txt (line 19)) (4.26.0)
+Requirement already satisfied: jsonpatch<2.0.0,>=1.33.0 in c:\users\2407014\appdata\roaming\python\python313\site-packages (from langchain-core==1.6.2->-r requirements.txt (line 24)) (1.33)
+Requirement already satisfied: langchain-protocol>=0.0.17 in c:\users\2407014\appdata\roaming\python\python313\site-packages (from langchain-core==1.6.2->-r requirements.txt (line 24)) (0.0.18)
+Requirement already satisfied: langsmith<1.0.0,>=0.3.45 in c:\users\2407014\appdata\roaming\python\python313\site-packages (from langchain-core==1.6.2->-r requirements.txt (line 24)) (0.11.0)
+Requirement already satisfied: packaging>=23.2.0 in c:\users\2407014\appdata\roaming\python\python313\site-packages (from langchain-core==1.6.2->-r requirements.txt (line 24)) (26.3)
+Requirement already satisfied: uuid-utils<1.0,>=0.12.0 in c:\users\2407014\appdata\roaming\python\python313\site-packages (from langchain-core==1.6.2->-r requirements.txt (line 24)) (0.17.0)
+Requirement already satisfied: anyio in c:\program files\python313\lib\site-packages (from httpx==0.28.1->-r requirements.txt (line 45)) (4.13.0)
+Requirement already satisfied: certifi in c:\program files\python313\lib\site-packages (from httpx==0.28.1->-r requirements.txt (line 45)) (2026.2.25)
+Requirement already satisfied: httpcore==1.* in c:\program files\python313\lib\site-packages (from httpx==0.28.1->-r requirements.txt (line 45)) (1.0.9)
+Requirement already satisfied: idna in c:\program files\python313\lib\site-packages (from httpx==0.28.1->-r requirements.txt (line 45)) (3.11)
+Requirement already satisfied: langgraph<1.3.0,>=1.2.11 in c:\users\2407014\appdata\roaming\python\python313\site-packages (from langchain==1.4.0->-r requirements.txt (line 23)) (1.2.11)
+Requirement already satisfied: aiohttp<4.0.0,>=3.8.3 in c:\users\2407014\appdata\roaming\python\python313\site-packages (from langchain-community==0.4.2->-r requirements.txt (line 25)) (3.14.3)
+Requirement already satisfied: httpx-sse<1.0.0,>=0.4.0 in c:\users\2407014\appdata\roaming\python\python313\site-packages (from langchain-community==0.4.2->-r requirements.txt (line 25)) (0.4.3)
+Requirement already satisfied: langchain-classic<2.0.0,>=1.0.7 in c:\users\2407014\appdata\roaming\python\python313\site-packages (from langchain-community==0.4.2->-r requirements.txt (line 25)) (1.0.8)
+Requirement already satisfied: requests<3.0.0,>=2.32.5 in c:\users\2407014\appdata\roaming\python\python313\site-packages (from langchain-community==0.4.2->-r requirements.txt (line 25)) (2.34.2)
+Requirement already satisfied: filetype<2.0.0,>=1.2.0 in c:\program files\python313\lib\site-packages (from langchain-google-genai==4.4.0->-r requirements.txt (line 27)) (1.2.0)
+Requirement already satisfied: google-auth<3.0.0,>=2.56.0 in c:\program files\python313\lib\site-packages (from google-auth[requests]<3.0.0,>=2.56.0->google-genai==2.22.0->-r requirements.txt (line 31)) (2.56.3)
+Requirement already satisfied: websockets<17.0,>=13.0.0 in c:\users\2407014\appdata\roaming\python\python313\site-packages (from google-genai==2.22.0->-r requirements.txt (line 31)) (15.0.1)
+Requirement already satisfied: distro<2,>=1.7.0 in c:\program files\python313\lib\site-packages (from google-genai==2.22.0->-r requirements.txt (line 31)) (1.9.0)
+Requirement already satisfied: sniffio in c:\program files\python313\lib\site-packages (from google-genai==2.22.0->-r requirements.txt (line 31)) (1.3.1)
+Collecting lxml>=3.1.0 (from python-docx==1.1.2->-r requirements.txt (line 36))
+  Using cached lxml-6.1.3-cp313-cp313-win_amd64.whl.metadata (3.4 kB)
+Collecting et-xmlfile (from openpyxl==3.1.5->-r requirements.txt (line 37))
+  Using cached et_xmlfile-2.0.0-py3-none-any.whl.metadata (2.7 kB)
+Requirement already satisfied: regex>=2022.1.18 in c:\users\2407014\appdata\roaming\python\python313\site-packages (from tiktoken==0.7.0->-r requirements.txt (line 42)) (2026.7.19)
+Collecting ecdsa!=0.15 (from python-jose==3.3.0->python-jose[cryptography]==3.3.0->-r requirements.txt (line 48))
+  Using cached ecdsa-0.19.2-py2.py3-none-any.whl.metadata (29 kB)
+Collecting rsa (from python-jose==3.3.0->python-jose[cryptography]==3.3.0->-r requirements.txt (line 48))
+  Using cached rsa-4.9.1-py3-none-any.whl.metadata (5.6 kB)
+Requirement already satisfied: pyasn1 in c:\program files\python313\lib\site-packages (from python-jose==3.3.0->python-jose[cryptography]==3.3.0->-r requirements.txt (line 48)) (0.6.4)
+Requirement already satisfied: cryptography>=3.4.0 in c:\program files\python313\lib\site-packages (from python-jose[cryptography]==3.3.0->-r requirements.txt (line 48)) (46.0.7)
+Requirement already satisfied: greenlet!=0.4.17 in c:\users\2407014\appdata\roaming\python\python313\site-packages (from sqlalchemy[asyncio]==2.0.35->-r requirements.txt (line 15)) (3.5.5)
+Requirement already satisfied: colorama>=0.4 in c:\program files\python313\lib\site-packages (from uvicorn[standard]==0.30.6->-r requirements.txt (line 7)) (0.4.6)
+Requirement already satisfied: httptools>=0.5.0 in c:\program files\python313\lib\site-packages (from uvicorn[standard]==0.30.6->-r requirements.txt (line 7)) (0.7.1)
+Requirement already satisfied: watchfiles>=0.13 in c:\program files\python313\lib\site-packages (from uvicorn[standard]==0.30.6->-r requirements.txt (line 7)) (1.1.1)
+Requirement already satisfied: aiohappyeyeballs>=2.5.0 in c:\users\2407014\appdata\roaming\python\python313\site-packages (from aiohttp<4.0.0,>=3.8.3->langchain-community==0.4.2->-r requirements.txt (line 25)) (2.7.1)
+Requirement already satisfied: aiosignal>=1.4.0 in c:\users\2407014\appdata\roaming\python\python313\site-packages (from aiohttp<4.0.0,>=3.8.3->langchain-community==0.4.2->-r requirements.txt (line 25)) (1.4.0)
+Requirement already satisfied: attrs>=17.3.0 in c:\users\2407014\appdata\roaming\python\python313\site-packages (from aiohttp<4.0.0,>=3.8.3->langchain-community==0.4.2->-r requirements.txt (line 25)) (26.1.0)
+Requirement already satisfied: frozenlist>=1.1.1 in c:\users\2407014\appdata\roaming\python\python313\site-packages (from aiohttp<4.0.0,>=3.8.3->langchain-community==0.4.2->-r requirements.txt (line 25)) (1.8.0)
+Requirement already satisfied: multidict<7.0,>=4.5 in c:\users\2407014\appdata\roaming\python\python313\site-packages (from aiohttp<4.0.0,>=3.8.3->langchain-community==0.4.2->-r requirements.txt (line 25)) (6.7.1)
+Requirement already satisfied: propcache>=0.2.0 in c:\users\2407014\appdata\roaming\python\python313\site-packages (from aiohttp<4.0.0,>=3.8.3->langchain-community==0.4.2->-r requirements.txt (line 25)) (0.5.2)
+Requirement already satisfied: yarl<2.0,>=1.17.0 in c:\users\2407014\appdata\roaming\python\python313\site-packages (from aiohttp<4.0.0,>=3.8.3->langchain-community==0.4.2->-r requirements.txt (line 25)) (1.24.5)
+Requirement already satisfied: pyasn1-modules>=0.2.1 in c:\program files\python313\lib\site-packages (from google-auth<3.0.0,>=2.56.0->google-auth[requests]<3.0.0,>=2.56.0->google-genai==2.22.0->-r requirements.txt (line 31)) (0.4.2)
+Requirement already satisfied: jsonpointer>=1.9 in c:\users\2407014\appdata\roaming\python\python313\site-packages (from jsonpatch<2.0.0,>=1.33.0->langchain-core==1.6.2->-r requirements.txt (line 24)) (3.1.1)
+Requirement already satisfied: langgraph-checkpoint<5.0.0,>=4.1.0 in c:\users\2407014\appdata\roaming\python\python313\site-packages (from langgraph<1.3.0,>=1.2.11->langchain==1.4.0->-r requirements.txt (line 23)) (4.2.0)
+Requirement already satisfied: langgraph-prebuilt<1.2.0,>=1.1.0 in c:\users\2407014\appdata\roaming\python\python313\site-packages (from langgraph<1.3.0,>=1.2.11->langchain==1.4.0->-r requirements.txt (line 23)) (1.1.0)
+Requirement already satisfied: langgraph-sdk<0.5.0,>=0.4.2 in c:\users\2407014\appdata\roaming\python\python313\site-packages (from langgraph<1.3.0,>=1.2.11->langchain==1.4.0->-r requirements.txt (line 23)) (0.4.2)
+Requirement already satisfied: xxhash>=3.5.0 in c:\users\2407014\appdata\roaming\python\python313\site-packages (from langgraph<1.3.0,>=1.2.11->langchain==1.4.0->-r requirements.txt (line 23)) (4.0.1)
+Requirement already satisfied: ormsgpack>=1.12.0 in c:\users\2407014\appdata\roaming\python\python313\site-packages (from langgraph-checkpoint<5.0.0,>=4.1.0->langgraph<1.3.0,>=1.2.11->langchain==1.4.0->-r requirements.txt (line 23)) (1.12.2)
+Requirement already satisfied: requests-toolbelt>=1.0.0 in c:\users\2407014\appdata\roaming\python\python313\site-packages (from langsmith<1.0.0,>=0.3.45->langchain-core==1.6.2->-r requirements.txt (line 24)) (1.0.0)
+Requirement already satisfied: zstandard>=0.23.0 in c:\users\2407014\appdata\roaming\python\python313\site-packages (from langsmith<1.0.0,>=0.3.45->langchain-core==1.6.2->-r requirements.txt (line 24)) (0.25.0)
+Requirement already satisfied: charset_normalizer<4,>=2 in c:\program files\python313\lib\site-packages (from requests<3.0.0,>=2.32.5->langchain-community==0.4.2->-r requirements.txt (line 25)) (3.4.7)
+Requirement already satisfied: urllib3<3,>=1.26 in c:\program files\python313\lib\site-packages (from requests<3.0.0,>=2.32.5->langchain-community==0.4.2->-r requirements.txt (line 25)) (2.6.3)
+Requirement already satisfied: pyproject_hooks in c:\users\2407014\appdata\roaming\python\python313\site-packages (from build>=1.0.3->chromadb==1.5.9->-r requirements.txt (line 19)) (1.2.0)
+Requirement already satisfied: cffi>=2.0.0 in c:\program files\python313\lib\site-packages (from cryptography>=3.4.0->python-jose[cryptography]==3.3.0->-r requirements.txt (line 48)) (2.0.0)
+Requirement already satisfied: pycparser in c:\program files\python313\lib\site-packages (from cffi>=2.0.0->cryptography>=3.4.0->python-jose[cryptography]==3.3.0->-r requirements.txt (line 48)) (3.0)
+Requirement already satisfied: six>=1.9.0 in c:\users\2407014\appdata\roaming\python\python313\site-packages (from ecdsa!=0.15->python-jose==3.3.0->python-jose[cryptography]==3.3.0->-r requirements.txt (line 48)) (1.17.0)
+Requirement already satisfied: jsonschema-specifications>=2023.03.6 in c:\users\2407014\appdata\roaming\python\python313\site-packages (from jsonschema>=4.19.0->chromadb==1.5.9->-r requirements.txt (line 19)) (2025.9.1)
+Requirement already satisfied: referencing>=0.28.4 in c:\users\2407014\appdata\roaming\python\python313\site-packages (from jsonschema>=4.19.0->chromadb==1.5.9->-r requirements.txt (line 19)) (0.37.0)
+Requirement already satisfied: rpds-py>=0.25.0 in c:\users\2407014\appdata\roaming\python\python313\site-packages (from jsonschema>=4.19.0->chromadb==1.5.9->-r requirements.txt (line 19)) (2026.6.3)
+Requirement already satisfied: python-dateutil>=2.5.3 in c:\users\2407014\appdata\roaming\python\python313\site-packages (from kubernetes>=28.1.0->chromadb==1.5.9->-r requirements.txt (line 19)) (2.9.0.post0)
+Requirement already satisfied: websocket-client!=0.40.0,!=0.41.*,!=0.42.*,>=0.32.0 in c:\users\2407014\appdata\roaming\python\python313\site-packages (from kubernetes>=28.1.0->chromadb==1.5.9->-r requirements.txt (line 19)) (1.9.0)
+Requirement already satisfied: requests-oauthlib in c:\users\2407014\appdata\roaming\python\python313\site-packages (from kubernetes>=28.1.0->chromadb==1.5.9->-r requirements.txt (line 19)) (2.0.0)
+Requirement already satisfied: durationpy>=0.7 in c:\users\2407014\appdata\roaming\python\python313\site-packages (from kubernetes>=28.1.0->chromadb==1.5.9->-r requirements.txt (line 19)) (0.10)
+Requirement already satisfied: flatbuffers in c:\users\2407014\appdata\roaming\python\python313\site-packages (from onnxruntime>=1.14.1->chromadb==1.5.9->-r requirements.txt (line 19)) (25.12.19)
+Requirement already satisfied: protobuf>=4.25.8 in c:\users\2407014\appdata\roaming\python\python313\site-packages (from onnxruntime>=1.14.1->chromadb==1.5.9->-r requirements.txt (line 19)) (7.35.1)
+Requirement already satisfied: googleapis-common-protos~=1.57 in c:\users\2407014\appdata\roaming\python\python313\site-packages (from opentelemetry-exporter-otlp-proto-grpc>=1.2.0->chromadb==1.5.9->-r requirements.txt (line 19)) (1.75.1)
+Requirement already satisfied: opentelemetry-exporter-otlp-proto-common==1.44.0 in c:\users\2407014\appdata\roaming\python\python313\site-packages (from opentelemetry-exporter-otlp-proto-grpc>=1.2.0->chromadb==1.5.9->-r requirements.txt (line 19)) (1.44.0)
+Requirement already satisfied: opentelemetry-proto==1.44.0 in c:\users\2407014\appdata\roaming\python\python313\site-packages (from opentelemetry-exporter-otlp-proto-grpc>=1.2.0->chromadb==1.5.9->-r requirements.txt (line 19)) (1.44.0)
+Requirement already satisfied: opentelemetry-semantic-conventions==0.65b0 in c:\users\2407014\appdata\roaming\python\python313\site-packages (from opentelemetry-sdk>=1.2.0->chromadb==1.5.9->-r requirements.txt (line 19)) (0.65b0)
+Requirement already satisfied: markdown-it-py>=2.2.0 in c:\users\2407014\appdata\roaming\python\python313\site-packages (from rich>=10.11.0->chromadb==1.5.9->-r requirements.txt (line 19)) (4.2.0)
+Requirement already satisfied: pygments<3.0.0,>=2.13.0 in c:\users\2407014\appdata\roaming\python\python313\site-packages (from rich>=10.11.0->chromadb==1.5.9->-r requirements.txt (line 19)) (2.21.0)
+Requirement already satisfied: mdurl~=0.1 in c:\users\2407014\appdata\roaming\python\python313\site-packages (from markdown-it-py>=2.2.0->rich>=10.11.0->chromadb==1.5.9->-r requirements.txt (line 19)) (0.1.2)
+Requirement already satisfied: huggingface-hub<2.0,>=0.16.4 in c:\users\2407014\appdata\roaming\python\python313\site-packages (from tokenizers>=0.13.2->chromadb==1.5.9->-r requirements.txt (line 19)) (1.27.0)
+Requirement already satisfied: filelock>=3.10.0 in c:\users\2407014\appdata\roaming\python\python313\site-packages (from huggingface-hub<2.0,>=0.16.4->tokenizers>=0.13.2->chromadb==1.5.9->-r requirements.txt (line 19)) (3.32.3)
+Requirement already satisfied: fsspec>=2023.5.0 in c:\users\2407014\appdata\roaming\python\python313\site-packages (from huggingface-hub<2.0,>=0.16.4->tokenizers>=0.13.2->chromadb==1.5.9->-r requirements.txt (line 19)) (2026.7.0)
+Requirement already satisfied: hf-xet<2.0.0,>=1.5.2 in c:\users\2407014\appdata\roaming\python\python313\site-packages (from huggingface-hub<2.0,>=0.16.4->tokenizers>=0.13.2->chromadb==1.5.9->-r requirements.txt (line 19)) (1.6.0)
+Requirement already satisfied: shellingham>=1.3.0 in c:\users\2407014\appdata\roaming\python\python313\site-packages (from typer>=0.9.0->chromadb==1.5.9->-r requirements.txt (line 19)) (1.5.4)
+Requirement already satisfied: annotated-doc>=0.0.2 in c:\users\2407014\appdata\roaming\python\python313\site-packages (from typer>=0.9.0->chromadb==1.5.9->-r requirements.txt (line 19)) (0.0.5)
+Requirement already satisfied: oauthlib>=3.0.0 in c:\users\2407014\appdata\roaming\python\python313\site-packages (from requests-oauthlib->kubernetes>=28.1.0->chromadb==1.5.9->-r requirements.txt (line 19)) (3.3.1)
+Using cached fastapi-0.115.0-py3-none-any.whl (94 kB)
+Using cached pydantic-2.13.5-py3-none-any.whl (472 kB)
+Using cached uvicorn-0.30.6-py3-none-any.whl (62 kB)
+Using cached python_multipart-0.0.12-py3-none-any.whl (23 kB)
+Using cached SQLAlchemy-2.0.35-py3-none-any.whl (1.9 MB)
+Using cached asyncpg-0.31.0-cp313-cp313-win_amd64.whl (596 kB)
+Using cached langchain_core-1.6.2-py3-none-any.whl (571 kB)
+Using cached langchain-1.4.0-py3-none-any.whl (161 kB)
+Using cached langchain_google_genai-4.4.0-py3-none-any.whl (81 kB)
+Using cached google_genai-2.22.0-py3-none-any.whl (1.1 MB)
+Using cached langchain_groq-1.1.3-py3-none-any.whl (20 kB)
+Using cached groq-0.37.1-py3-none-any.whl (137 kB)
+Using cached pymupdf-1.26.1-cp39-abi3-win_amd64.whl (18.5 MB)
+Using cached python_docx-1.1.2-py3-none-any.whl (244 kB)
+Using cached openpyxl-3.1.5-py2.py3-none-any.whl (250 kB)
+Using cached xlrd-2.0.1-py2.py3-none-any.whl (96 kB)
+Using cached python_jose-3.3.0-py2.py3-none-any.whl (33 kB)
+Using cached pydantic_core-2.46.5-cp313-cp313-win_amd64.whl (2.0 MB)
+Using cached starlette-0.38.6-py3-none-any.whl (71 kB)
+Using cached ecdsa-0.19.2-py2.py3-none-any.whl (150 kB)
+Using cached lxml-6.1.3-cp313-cp313-win_amd64.whl (4.0 MB)
+Using cached et_xmlfile-2.0.0-py3-none-any.whl (18 kB)
+Using cached rsa-4.9.1-py3-none-any.whl (34 kB)
+Building wheels for collected packages: tiktoken
+  Building wheel for tiktoken (pyproject.toml): started
+  Building wheel for tiktoken (pyproject.toml): finished with status 'error'
+pip :   error: subprocess-exited-with-error
+At line:1 char:391
++ ... ck-Application\backend"; pip install -r requirements.txt 2>&1 | Tee-O ...
++                              ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (  error: subprocess-exited-with-error:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+  
+  × Building wheel for tiktoken (pyproject.toml) did not run successfully.
+  │ exit code: 1
+  ╰─> [50 lines of output]
+      C:\Users\2407014\AppData\Local\Temp\pip-build-env-qwf35okc\overlay\Lib\site-packages\setuptools\config\_apply_pyp
+rojecttoml.py:82: SetuptoolsDeprecationWarning: `project.license` as a TOML table is deprecated
+      !!
+      
+              ********************************************************************************
+              Please use a simple string containing a SPDX expression for `project.license`. You can also use 
+`project.license-files`. (Both options available on setuptools>=77.0.0).
+      
+              By 2027-Feb-18, you need to update your project and remove deprecated calls
+              or your builds will no longer be supported.
+      
+              See https://packaging.python.org/en/latest/guides/writing-pyproject-toml/#license for details.
+              ********************************************************************************
+      
+      !!
+        corresp(dist, value, root_dir)
+      running bdist_wheel
+      running build
+      running build_py
+      creating build\lib.win-amd64-cpython-313\tiktoken
+      copying tiktoken\core.py -> build\lib.win-amd64-cpython-313\tiktoken
+      copying tiktoken\load.py -> build\lib.win-amd64-cpython-313\tiktoken
+      copying tiktoken\model.py -> build\lib.win-amd64-cpython-313\tiktoken
+      copying tiktoken\registry.py -> build\lib.win-amd64-cpython-313\tiktoken
+      copying tiktoken\_educational.py -> build\lib.win-amd64-cpython-313\tiktoken
+      copying tiktoken\__init__.py -> build\lib.win-amd64-cpython-313\tiktoken
+      creating build\lib.win-amd64-cpython-313\tiktoken_ext
+      copying tiktoken_ext\openai_public.py -> build\lib.win-amd64-cpython-313\tiktoken_ext
+      running egg_info
+      writing tiktoken.egg-info\PKG-INFO
+      writing dependency_links to tiktoken.egg-info\dependency_links.txt
+      writing requirements to tiktoken.egg-info\requires.txt
+      writing top-level names to tiktoken.egg-info\top_level.txt
+      reading manifest file 'tiktoken.egg-info\SOURCES.txt'
+      reading manifest template 'MANIFEST.in'
+      warning: no files found matching 'Makefile'
+      adding license file 'LICENSE'
+      writing manifest file 'tiktoken.egg-info\SOURCES.txt'
+      copying tiktoken\py.typed -> build\lib.win-amd64-cpython-313\tiktoken
+      running build_ext
+      running build_rust
+      error: can't find Rust compiler
+      
+      If you are using an outdated pip version, it is possible a prebuilt wheel is available for this package but pip 
+is not able to install from it. Installing from the wheel would avoid the need for a Rust compiler.
+      
+      To update pip, run:
+      
+          pip install --upgrade pip
+      
+      and then retry package installation.
+      
+      If you did intend to build this package from source, try installing a Rust compiler from your system package 
+manager and ensure it is on the PATH during installation. Alternatively, rustup (available at https://rustup.rs) is 
+the recommended way to download and update the Rust compiler toolchain.
+      [end of output]
+  
+  note: This error originates from a subprocess, and is likely not a problem with pip.
+  ERROR: Failed building wheel for tiktoken
+Failed to build tiktoken
+
+[notice] A new release of pip is available: 25.2 -> 26.2.1
+[notice] To update, run: python.exe -m pip install --upgrade pip
+error: failed-wheel-build-for-install
+
+× Failed to build installable wheels for some pyproject.toml based projects
+╰─> tiktoken

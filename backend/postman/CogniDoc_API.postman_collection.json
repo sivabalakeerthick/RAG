@@ -1,0 +1,195 @@
+{
+  "info": {
+    "_postman_id": "cognidoc-api-v1",
+    "name": "CogniDoc RAG API",
+    "description": "Complete API collection for the CogniDoc RAG backend. Set the `baseUrl` variable to `http://localhost:8000` and `bearerToken` to a valid Auth0 JWT.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:8000", "type": "string" },
+    { "key": "bearerToken", "value": "YOUR_AUTH0_JWT_HERE", "type": "string" },
+    { "key": "documentId", "value": "", "type": "string" }
+  ],
+  "auth": {
+    "type": "bearer",
+    "bearer": [{ "key": "token", "value": "{{bearerToken}}", "type": "string" }]
+  },
+  "item": [
+    {
+      "name": "Documents",
+      "item": [
+        {
+          "name": "List Documents",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/documents", "host": ["{{baseUrl}}"], "path": ["api", "documents"] },
+            "description": "Returns all indexed documents ordered by created_at descending."
+          }
+        },
+        {
+          "name": "Upload Document",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "file", "type": "file", "src": "/path/to/your/document.pdf", "description": "PDF, DOCX, or TXT (max 25 MB)" },
+                { "key": "category", "value": "Security & Policy", "type": "text", "description": "Knowledge category" }
+              ]
+            },
+            "url": { "raw": "{{baseUrl}}/api/documents/upload", "host": ["{{baseUrl}}"], "path": ["api", "documents", "upload"] },
+            "description": "Upload a file. The service extracts text, chunks (512 tokens, 50 overlap), embeds with Gemini, and indexes into ChromaDB + PostgreSQL."
+          }
+        },
+        {
+          "name": "Delete Document",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/documents/{{documentId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "documents", "{{documentId}}"]
+            },
+            "description": "Permanently removes the document and all its vector chunks from ChromaDB and PostgreSQL."
+          }
+        },
+        {
+          "name": "Re-index Document",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/documents/{{documentId}}/reindex",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "documents", "{{documentId}}", "reindex"]
+            },
+            "description": "Re-chunks and re-embeds the original file, replacing all existing vector chunks."
+          }
+        },
+        {
+          "name": "Get Chunks (Inspector)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/documents/{{documentId}}/chunks",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "documents", "{{documentId}}", "chunks"]
+            },
+            "description": "Returns all vector chunks for a document with token count and text excerpt."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Chat / RAG",
+      "item": [
+        {
+          "name": "Query Knowledge Base",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"query\": \"What is the remote work policy?\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/chat/query", "host": ["{{baseUrl}}"], "path": ["api", "chat", "query"] },
+            "description": "Hybrid RAG query pipeline:\n1. Embed query (Gemini gemini-embedding-2)\n2. Dense retrieval (ChromaDB, top-20)\n3. Sparse retrieval (BM25, top-20)\n4. RRF fusion → top-10\n5. Gemini reranking → top-5\n6. Gemini generation (grounded answer)\n7. Async LLM-as-Judge via Groq"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Metrics",
+      "item": [
+        {
+          "name": "Dashboard Metrics",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/metrics", "host": ["{{baseUrl}}"], "path": ["api", "metrics"] },
+            "description": "Returns vectorChunks, monthlyQueries, groundingRate, and avgLatencyMs for the dashboard."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Health Checks",
+      "item": [
+        {
+          "name": "Gateway Health",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "http://localhost:8000/health", "raw": "http://localhost:8000/health" },
+            "auth": { "type": "noauth" }
+          }
+        },
+        {
+          "name": "Document Service Health",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "http://localhost:8001/health" },
+            "auth": { "type": "noauth" }
+          }
+        },
+        {
+          "name": "RAG Service Health",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "http://localhost:8002/health" },
+            "auth": { "type": "noauth" }
+          }
+        },
+        {
+          "name": "Judge Service Health",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "http://localhost:8003/health" },
+            "auth": { "type": "noauth" }
+          }
+        },
+        {
+          "name": "Metrics Service Health",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "http://localhost:8004/health" },
+            "auth": { "type": "noauth" }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Swagger / OpenAPI",
+      "item": [
+        {
+          "name": "Gateway Swagger UI",
+          "request": { "method": "GET", "url": { "raw": "http://localhost:8000/docs" }, "auth": { "type": "noauth" } }
+        },
+        {
+          "name": "Document Service Swagger",
+          "request": { "method": "GET", "url": { "raw": "http://localhost:8001/docs" }, "auth": { "type": "noauth" } }
+        },
+        {
+          "name": "RAG Service Swagger",
+          "request": { "method": "GET", "url": { "raw": "http://localhost:8002/docs" }, "auth": { "type": "noauth" } }
+        },
+        {
+          "name": "Judge Service Swagger",
+          "request": { "method": "GET", "url": { "raw": "http://localhost:8003/docs" }, "auth": { "type": "noauth" } }
+        },
+        {
+          "name": "Metrics Service Swagger",
+          "request": { "method": "GET", "url": { "raw": "http://localhost:8004/docs" }, "auth": { "type": "noauth" } }
+        }
+      ]
+    }
+  ]
+}

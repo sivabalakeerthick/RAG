@@ -1,0 +1,144 @@
+<div class="home-container">
+  <div class="ambient-glow glow-1"></div>
+  <div class="ambient-glow glow-2"></div>
+
+  <main class="workspace-content">
+    <!-- Hero Banner -->
+    <section class="hero-banner">
+      <div class="status-badge">
+        <span class="status-dot"></span>
+        Enterprise Knowledge Base Connected
+      </div>
+      <h1>Ask CogniDoc</h1>
+      <p>Answers are grounded directly in your internal documentation with verified source citations.</p>
+    </section>
+
+    <!-- Quick Prompts (Only shown before searching) -->
+    @if (messages().length === 0) {
+      <div class="quick-chips">
+        <button class="chip" (click)="selectPrompt('What is our dress code policy?')">
+          <i class="fa-solid fa-magnifying-glass"></i>
+          Dress code Policy
+        </button>
+        <button class="chip" (click)="selectPrompt('How to resolve a network issue?')">
+          <i class="fa-solid fa-headset"></i>
+          Network Support
+        </button>
+        <button class="chip" (click)="selectPrompt('what is our reimbursement policy?')">
+          <i class="fa-solid fa-code"></i>
+          Reimbursement
+        </button>
+      </div>
+    }
+
+    <!-- Chat / Response Stream -->
+    <div class="chat-stream">
+      @for (msg of messages(); track $index) {
+        @if (msg.role === 'user') {
+          <div class="message user-message">
+            <div class="message-bubble">{{ msg.content }}</div>
+          </div>
+        } @else {
+          <div class="message ai-card">
+            <div class="ai-card-header">
+              <div class="ai-badge">
+                <i class="fa-solid fa-file-contract"></i>
+              </div>
+              <span class="ai-name">CogniDoc Answer</span>
+            </div>
+
+            <div class="ai-card-body">
+              <p>{{ msg.content }}</p>
+
+              <!-- User Feedback Buttons (Thumbs Up / Down) -->
+              @if (msg.queryLogId) {
+                <div class="feedback-container">
+                  <span class="feedback-prompt">Was this answer accurate?</span>
+                  <div class="feedback-buttons">
+                    <button
+                      type="button"
+                      class="feedback-btn like"
+                      [class.active]="msg.userFeedback === 'thumbs_up'"
+                      [disabled]="msg.isFeedbackSubmitting"
+                      (click)="submitFeedback(msg, 'thumbs_up')"
+                      title="Accurate and helpful">
+                      <i class="fa-solid fa-thumbs-up"></i>
+                      <span>Helpful</span>
+                    </button>
+                    <button
+                      type="button"
+                      class="feedback-btn dislike"
+                      [class.active]="msg.userFeedback === 'thumbs_down'"
+                      [disabled]="msg.isFeedbackSubmitting"
+                      (click)="submitFeedback(msg, 'thumbs_down')"
+                      title="Inaccurate or unhelpful">
+                      <i class="fa-solid fa-thumbs-down"></i>
+                      <span>Needs improvement</span>
+                    </button>
+                  </div>
+                </div>
+              }
+
+              <!-- Source Citations Drawer — hidden for now, sources are not shown.
+              @if (msg.sources && msg.sources.length > 0) {
+                <div class="sources-container">
+                  <span class="sources-label">
+                    <i class="fa-solid fa-link"></i>
+                    Retrieved Knowledge Sources:
+                  </span>
+                  @for (source of msg.sources; track source.id) {
+                    <div class="source-info">
+                        <i class="fa-solid fa-file-pdf"></i>
+                        <span>{{ source.fileName }}</span>
+                    </div>
+                  }
+                </div>
+              }
+              -->
+
+            </div>
+          </div>
+        }
+      }
+
+      <!-- Loading State -->
+      @if (isLoading()) {
+        <div class="message ai-card loading-card">
+          <div class="ai-card-header">
+            <div class="ai-badge spin">
+              <i class="fa-solid fa-circle-notch"></i>
+            </div>
+            <span class="ai-name">Searching Knowledge Base & Generating Answer...</span>
+          </div>
+        </div>
+      }
+
+      <!-- Error State -->
+      @if (errorMessage(); as error) {
+        <div class="message ai-card error-card">
+          <div class="ai-card-header">
+            <div class="ai-badge error">
+              <i class="fa-solid fa-circle-exclamation"></i>
+            </div>
+            <span class="ai-name">{{ error }}</span>
+          </div>
+        </div>
+      }
+    </div>
+
+    <!-- Sticky Prompt Bar -->
+    <div class="search-box-container">
+      <input
+        type="text"
+        placeholder="Ask CogniDoc about enterprise policies, API docs, or specs..."
+        [ngModel]="searchQuery()"
+        (ngModelChange)="searchQuery.set($event)"
+        (keyup.enter)="onSearch()"
+        [disabled]="isLoading()" />
+
+      <button class="send-btn" (click)="onSearch()" [disabled]="!searchQuery().trim() || isLoading()">
+        <i class="fa-solid fa-paper-plane"></i>
+      </button>
+    </div>
+  </main>
+</div>

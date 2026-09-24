@@ -1,0 +1,136 @@
+<mat-toolbar class="navbar">
+  
+
+  <div class="container-fluid">
+    <div class="brand">
+      <div class="brand-icon">
+        <i class="fa-solid fa-file-contract"></i>
+      </div>
+      <span>COGNIDOC</span>
+    </div>
+
+    <div class="nav-links">
+      <a routerLink="/home" routerLinkActive="active">
+        <i class="fa-solid fa-house"></i>
+        Home
+      </a>
+
+      @if (authService.hasRole('Admin')) {
+        <a routerLink="/dashboard" routerLinkActive="active">
+          <i class="fa-solid fa-chart-line"></i>
+          Dashboard
+        </a>
+      }
+
+      <a routerLink="/about" routerLinkActive="active">
+        <i class="fa-solid fa-circle-info"></i>
+        About
+      </a>
+
+      <a routerLink="/contact" routerLinkActive="active">
+        <i class="fa-solid fa-envelope"></i>
+        Contact
+      </a>
+
+      <!-- Profile Avatar Button -->
+      <div class="profile-dropdown-wrapper">
+        <button 
+          type="button"
+          class="profile-avatar-btn" 
+          (click)="toggleProfileCard($event)" 
+          [class.active]="isProfileCardOpen"
+          aria-label="User Profile Menu">
+          <i class="fa-solid fa-user-gear"></i>
+        </button>
+
+        @if (isProfileCardOpen) {
+          <div class="profile-card" (click)="$event.stopPropagation()">
+            <div class="profile-header">
+              <div class="user-avatar-large">
+                <i class="fa-solid fa-user"></i>
+              </div>
+              <div class="user-info">
+                <h4 class="user-name">{{ authService.user()?.name || 'CogniDoc User' }}</h4>
+                <span class="user-email">{{ authService.user()?.email }}</span>
+                <span class="user-role-badge">
+                  <i class="fa-solid fa-shield-halved"></i>
+                  {{ authService.hasRole('Admin') ? 'System Admin' : 'Standard User' }}
+                </span>
+              </div>
+            </div>
+
+            <div class="profile-body">
+              <button class="profile-action-btn" (click)="onResetPassword()">
+                <div class="btn-content">
+                  <i class="fa-solid fa-key"></i>
+                  <span class="btn-title">Reset Password</span>
+                </div>
+                <i class="fa-solid fa-chevron-right arrow-icon"></i>
+              </button>
+            </div>
+
+            <div class="profile-footer">
+              <button class="profile-action-btn logout-danger" (click)="openLogoutConfirmation()">
+                <div class="btn-content">
+                  <i class="fa-solid fa-right-from-bracket"></i>
+                  <span class="btn-title">Sign Out</span>
+                </div>
+              </button>
+            </div>
+          </div>
+        }
+      </div>
+    </div>
+  </div>
+</mat-toolbar>
+
+<!-- Reset Password Confirmation Modal -->
+@if (isResetConfirmOpen) {
+  <div class="modal-backdrop" (click)="cancelResetPassword()">
+    <div class="confirm-dialog-card" (click)="$event.stopPropagation()">
+      <div class="dialog-icon-wrapper">
+        <i class="fa-solid fa-key"></i>
+      </div>
+      <h3>Reset Your Password?</h3>
+      <p>We'll send a password reset link to your email address.</p>
+
+      <div class="dialog-actions">
+        <button class="btn-secondary" (click)="cancelResetPassword()">Cancel</button>
+        <button class="btn-primary" (click)="confirmResetPassword()">Send Reset Link</button>
+      </div>
+    </div>
+  </div>
+}
+
+<!-- Logout Confirmation Modal -->
+@if (isLogoutConfirmOpen) {
+  <div class="modal-backdrop" (click)="cancelLogout()">
+    <div class="confirm-dialog-card" (click)="$event.stopPropagation()">
+      <div class="dialog-icon-wrapper">
+        <i class="fa-solid fa-triangle-exclamation"></i>
+      </div>
+      <h3>Sign Out of CogniDoc?</h3>
+      <p>Are you sure you want to log out?</p>
+
+      <div class="dialog-actions">
+        <button class="btn-secondary" (click)="cancelLogout()">Cancel</button>
+        <button class="btn-danger" (click)="confirmLogout()">Sign Out</button>
+      </div>
+    </div>
+  </div>
+}
+
+@if (isResetSentModalOpen) {
+  <div class="modal-backdrop" (click)="isResetSentModalOpen = false">
+    <div class="success-card" (click)="$event.stopPropagation()">
+      <div class="success-icon-badge">
+        <i class="fa-solid fa-envelope-open-text"></i>
+      </div>
+      <h3>Check Your Email</h3>
+      <p>We've sent a password reset link to <br><strong>{{ authService.user()?.email }}</strong></p>
+      <button class="btn-primary" (click)="isResetSentModalOpen = false">
+        Got it
+      </button>
+    </div>
+  </div>
+}

@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(Head -20)",
+      "PowerShell(python -m pip install --upgrade pip setuptools wheel)",
+      "PowerShell(pip list)",
+      "PowerShell(grep -E \"fastapi|pydantic|sqlalchemy|asyncpg|chromadb|langchain|pymupdf|tiktoken\")",
+      "PowerShell(pip install PyMuPDF==1.26.1 tiktoken groq langchain-groq python-jose 2>&1)"
+    ]
+  }
+}

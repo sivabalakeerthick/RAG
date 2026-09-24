@@ -1,0 +1,139 @@
+<div class="contact-container">
+  <div class="ambient-glow glow-1"></div>
+  <div class="ambient-glow glow-2"></div>
+
+  <main class="contact-content">
+    <!-- Hero Banner -->
+    <section class="hero-section">
+      <div class="badge">
+        <i class="fa-solid fa-headset"></i>
+        IT & Enterprise Support
+      </div>
+      <h1>Contact CogniDoc Support</h1>
+      <p class="subtitle">
+        Have questions regarding document indexing, access permissions, or system integration? Reach out to our team.
+      </p>
+    </section>
+
+    <div class="contact-grid">
+      <!-- Left Info Panel -->
+      <div class="info-sidebar">
+        <div class="info-card">
+          <div class="card-icon">
+            <i class="fa-solid fa-envelope"></i>
+          </div>
+          <div>
+            <h3>Email Support</h3>
+            <p>support&#64;company.com</p>
+            <span class="subtext">24/7 available</span>
+          </div>
+        </div>
+
+        <div class="info-card">
+          <div class="card-icon">
+            <i class="fa-solid fa-shield-halved"></i>
+          </div>
+          <div>
+            <h3>Security & Compliance</h3>
+            <p>security&#64;company.com</p>
+            <span class="subtext">Reach out for security-related inquiries</span>
+          </div>
+        </div>
+
+        <div class="info-card">
+          <div class="card-icon">
+            <i class="fa-solid fa-clock"></i>
+          </div>
+          <div>
+            <h3>Support Hours</h3>
+            <p>Mon - Fri: 8:00 AM - 6:00 PM IST</p>
+            <span class="subtext">Emergency support available</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Right Form Panel -->
+      <div class="form-card">
+        @if (isSubmitted()) {
+          <!-- Inline Success State -->
+          <div class="success-state">
+            <div class="success-icon">
+              <i class="fa-solid fa-envelope-open-text"></i>
+            </div>
+            <h2>Email has been sent!Check your inbox for confirmation...</h2>
+            <!-- <p>Your support ticket details have been pre-filled in your email client. Just hit <strong>Send</strong> to submit it to our team.</p> -->
+            <button class="submit-btn" (click)="sendAnother()">
+              <i class="fa-solid fa-rotate-left"></i>
+              <span>Send Another</span>
+            </button>
+          </div>
+        } @else {
+          <h2>Contact Us</h2>
+          <p class="form-subtitle">Fill out the form below and an IT specialist will respond shortly.</p>
+
+          <form (ngSubmit)="onSubmit()" #contactForm="ngForm">
+            <div class="form-group">
+              <label for="name">Full Name</label>
+              <input 
+                type="text" 
+                id="name" 
+                name="name" 
+                [(ngModel)]="formData.name" 
+                placeholder="e.g. John Doe" 
+                required />
+            </div>
+
+            <div class="form-group">
+              <label for="email">Work Email</label>
+              <input 
+                type="email" 
+                id="email" 
+                name="email" 
+                [(ngModel)]="formData.email" 
+                placeholder="john.doe&#64;company.com" 
+                required />
+            </div>
+
+            <div class="form-group">
+              <label for="category">Inquiry Category</label>
+              <select id="category" name="category" [(ngModel)]="formData.category">
+                <option value="access">Document Access / Permissions</option>
+                <option value="indexing">Knowledge Base Indexing Request</option>
+                <option value="bug">Report an Answer Discrepancy</option>
+                <option value="general">General Inquiry</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label for="message">Message / Details</label>
+              <textarea 
+                id="message" 
+                name="message" 
+                rows="4" 
+                [(ngModel)]="formData.message" 
+                placeholder="Describe your question or issue in detail..." 
+                required></textarea>
+            </div>
+
+            <button type="submit" class="submit-btn" [disabled]="!contactForm.form.valid || isSubmitting()">
+              @if (isSubmitting()) {
+                <i class="fa-solid fa-circle-notch spin"></i>
+                <span>Sending...</span>
+              } @else {
+                <span>Send Message</span>
+                <i class="fa-solid fa-paper-plane"></i>
+              }
+            </button>
+
+            @if (errorMessage(); as error) {
+              <div class="error-banner">
+                <i class="fa-solid fa-circle-exclamation"></i>
+                {{ error }}
+              </div>
+            }
+          </form>
+        }
+      </div>
+    </div>
+  </main>
+</div>

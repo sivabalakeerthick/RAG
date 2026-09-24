@@ -1,0 +1,33 @@
+<div class="unauthorized-container">
+  <div class="ambient-glow glow-1"></div>
+  <div class="ambient-glow glow-2"></div>
+
+  <mat-card class="unauthorized-card">
+    <div class="card-header">
+      <div class="error-icon">
+        <i class="fa-solid fa-lock"></i>
+      </div>
+      <span class="status-code">403 Forbidden</span>
+    </div>
+
+    <h1>Access Denied</h1>
+    <h2>Administrator Privileges Required</h2>
+
+    <p>
+      You do not have permission to access the CogniDoc Admin Dashboard. 
+      This area is restricted to system administrators and knowledge base managers.
+    </p>
+
+    <div class="action-buttons">
+      <button class="primary-btn" (click)="goHome()">
+        <i class="fa-solid fa-house"></i>
+        <span>Return to Home Workspace</span>
+      </button>
+    </div>
+
+    <div class="security-footer">
+      <i class="fa-solid fa-shield-halved"></i>
+      <span>Role-Based Access Control (RBAC) Active</span>
+    </div>
+  </mat-card>
+</div>
