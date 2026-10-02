@@ -87,16 +87,42 @@ class QueryLog(Base):
     judge_verdict = Column(String(20), nullable=True)  # PASS | FAIL
     judge_reasoning = Column(Text, nullable=True)
     user_feedback = Column(String(20), nullable=True)  # thumbs_up | thumbs_down
+    # ── Agentic RAG (port 8005) ───────────────────────────────────────────────
+    # Which pipeline produced the row, so agentic and baseline runs can be
+    # compared side by side instead of being averaged together.
+    agent_mode = Column(String(20), nullable=True, default="standard")   # standard | agentic
+    # Greetings retrieve 0 chunks; tagging them lets the metrics service exclude
+    # them so they cannot dilute retrieval precision/recall/F1.
+    intent = Column(String(30), nullable=True, default="retrieval")      # greeting | retrieval
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
 # ── Table Creation ────────────────────────────────────────────────────────────
 
+# Idempotent column additions. create_all() only creates missing *tables*, it
+# never alters an existing one — so every column added after a table first went
+# live needs an explicit ADD COLUMN IF NOT EXISTS here.
+_MIGRATIONS = (
+    "ALTER TABLE query_logs ADD COLUMN IF NOT EXISTS user_feedback VARCHAR(20);",
+    "ALTER TABLE query_logs ADD COLUMN IF NOT EXISTS agent_mode VARCHAR(20) DEFAULT 'standard';",
+    "ALTER TABLE query_logs ADD COLUMN IF NOT EXISTS intent VARCHAR(30) DEFAULT 'retrieval';",
+    # Backfill rows written before these columns existed, so metrics filtering
+    # on agent_mode/intent does not silently drop all historical queries.
+    "UPDATE query_logs SET agent_mode = 'standard' WHERE agent_mode IS NULL;",
+    "UPDATE query_logs SET intent = 'retrieval' WHERE intent IS NULL;",
+)
+
+
 async def create_tables():
     """Create all tables on startup if they don't exist, and ensure schema migrations."""
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+
+    # Each migration gets its own transaction: one failure (e.g. insufficient
+    # privileges) must not roll back the ones that already succeeded.
+    for statement in _MIGRATIONS:
         try:
-            await conn.execute(text("ALTER TABLE query_logs ADD COLUMN IF NOT EXISTS user_feedback VARCHAR(20);"))
+            async with engine.begin() as conn:
+                await conn.execute(text(statement))
         except Exception:
             pass

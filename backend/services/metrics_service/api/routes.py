@@ -18,7 +18,7 @@ from datetime import datetime, timedelta
 import time
 
 from fastapi import APIRouter, Depends, Query
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from shared.db.postgres import Chunk, Document, QueryLog, get_db
@@ -90,6 +90,10 @@ async def get_metrics(
     avg_latency = latency_result.scalar() or 0.0
 
     # ── Confusion Matrix (TP, TN, FP, FN) from Judge + User Feedback ──────────
+    # Greetings handled by the agentic service retrieve 0 chunks and are never
+    # judged, so including them would count every one as a negative and drag
+    # precision/recall/F1 toward zero. They are excluded here; NULL intent
+    # (every row written before the column existed) is treated as 'retrieval'.
     eval_result = await db.execute(
         select(
             QueryLog.judge_faithfulness,
@@ -97,7 +101,10 @@ async def get_metrics(
             QueryLog.judge_relevance,
             QueryLog.judge_verdict,
             QueryLog.user_feedback,
-        ).where(QueryLog.created_at >= thirty_days_ago)
+        ).where(
+            QueryLog.created_at >= thirty_days_ago,
+            or_(QueryLog.intent.is_(None), QueryLog.intent != "greeting"),
+        )
     )
     eval_rows = eval_result.all()
 

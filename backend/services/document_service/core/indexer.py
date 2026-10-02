@@ -114,3 +114,27 @@ def get_chunks_from_chroma(ids: list[str]) -> list[dict]:
         {"id": id_, "dim": len(emb) if emb is not None else 0}
         for id_, emb in zip(found_ids, embeddings)
     ]
+
+
+def purge_orphaned_vectors(valid_document_ids: set[str]) -> int:
+    """
+    Find and delete any vectors in ChromaDB whose `document_id` metadata tag
+    is missing or does not match any valid document ID in PostgreSQL.
+    Returns the number of purged orphaned vectors.
+    """
+    store = get_vector_store()
+    result = store._collection.get(include=["metadatas"])
+    ids = list(result.get("ids") or [])
+    metadatas = list(result.get("metadatas") or [])
+
+    orphaned_ids = []
+    for vector_id, meta in zip(ids, metadatas):
+        doc_id = (meta or {}).get("document_id")
+        if not doc_id or str(doc_id) not in valid_document_ids:
+            orphaned_ids.append(vector_id)
+
+    if orphaned_ids:
+        store._collection.delete(ids=orphaned_ids)
+
+    return len(orphaned_ids)
+

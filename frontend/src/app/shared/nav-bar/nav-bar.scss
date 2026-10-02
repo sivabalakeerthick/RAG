@@ -369,3 +369,38 @@
   from { opacity: 0; transform: scale(0.95); }
   to { opacity: 1; transform: scale(1); }
 }
+
+
+@media (max-width: 768px) {
+
+  .navbar {
+    height: auto;
+    padding: 1rem;
+  }
+
+  .container-fluid {
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  .nav-links {
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+}
+
+@media (max-width: 480px) {
+
+  .nav-links {
+    gap: 0.5rem;
+  }
+
+  .nav-links a {
+    font-size: 0.75rem;
+  }
+
+  .profile-card {
+    width: calc(100vw - 20px);
+    right: -10px;
+  }
+}

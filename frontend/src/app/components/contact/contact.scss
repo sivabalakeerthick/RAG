@@ -286,3 +286,14 @@
 
   i { flex-shrink: 0; }
 }
+
+@media (max-width: 480px) {
+
+  .form-card {
+    padding: 1rem;
+  }
+
+  .info-card {
+    padding: 1rem;
+  }
+}

@@ -363,3 +363,161 @@
 @keyframes spin {
   100% { transform: rotate(360deg); }
 }
+
+.message-bubble,
+.ai-card p {
+  word-break: break-word;
+}
+
+// ── Pipeline Mode Toggle ──────────────────────────────────────────────────────
+// Reuses the .quick-chips pill language (same radius, border, hover accent) so
+// it reads as part of the existing design system rather than a bolted-on control.
+.mode-toggle {
+  display: flex;
+  justify-content: center;
+  align-self: center;
+  gap: 4px;
+  padding: 4px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 22px;
+  backdrop-filter: blur(8px);
+
+  .mode-option {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    padding: 7px 16px;
+    border: 1px solid transparent;
+    border-radius: 18px;
+    background: transparent;
+    color: #94a3b8;
+    font-size: 0.8rem;
+    font-weight: 500;
+    font-family: inherit;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    white-space: nowrap;
+
+    i { font-size: 0.8rem; }
+
+    &:hover:not(:disabled):not(.active) {
+      color: #cbd5e1;
+      background: rgba(255, 255, 255, 0.04);
+    }
+
+    &.active {
+      background: rgba(59, 130, 246, 0.18);
+      border-color: rgba(59, 130, 246, 0.35);
+      color: #60a5fa;
+      box-shadow: 0 0 12px rgba(59, 130, 246, 0.15);
+    }
+
+    &:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+  }
+}
+
+// ── Agentic telemetry chips (header) ──────────────────────────────────────────
+.ai-card .ai-card-header {
+  flex-wrap: wrap;
+}
+
+.ai-card .agent-tags {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-left: auto; // Push to the trailing edge, above the answer body.
+
+  .agent-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 3px 9px;
+    border-radius: 20px;
+    font-size: 0.68rem;
+    font-weight: 500;
+    line-height: 1.4;
+    border: 1px solid transparent;
+    white-space: nowrap;
+
+    i { font-size: 0.65rem; }
+
+    // Muted default, matching .status-badge in the hero.
+    &.neutral {
+      background: rgba(255, 255, 255, 0.04);
+      border-color: rgba(255, 255, 255, 0.08);
+      color: #94a3b8;
+    }
+
+    // Reuses the emerald of the hero's "connected" status dot.
+    &.ok {
+      background: rgba(16, 185, 129, 0.12);
+      border-color: rgba(16, 185, 129, 0.3);
+      color: #34d399;
+    }
+
+    // Reuses the red of .ai-badge.error.
+    &.warn {
+      background: rgba(239, 68, 68, 0.12);
+      border-color: rgba(239, 68, 68, 0.3);
+      color: #f87171;
+    }
+  }
+}
+
+// ── Graph path trace ──────────────────────────────────────────────────────────
+.ai-card .graph-path {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin: 0 0 1rem 0;
+  padding: 7px 11px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 10px;
+  font-size: 0.68rem;
+  color: #94a3b8;
+
+  > i {
+    color: #60a5fa;
+    font-size: 0.7rem;
+    margin-right: 2px;
+  }
+
+  .node {
+    font-family: 'Consolas', 'Monaco', monospace;
+    color: #cbd5e1;
+  }
+
+  .arrow {
+    color: #475569;
+  }
+}
+
+@media (max-width: 560px) {
+  .mode-toggle .mode-option {
+    padding: 7px 12px;
+    font-size: 0.74rem;
+  }
+
+  .ai-card .agent-tags {
+    margin-left: 0;
+    width: 100%;
+  }
+}
+
+@media (max-width: 480px) {
+
+  .message.user-message .message-bubble {
+    max-width: 100%;
+  }
+
+  .chip {
+    width: 100%;
+  }
+}

@@ -13,6 +13,32 @@
       <p>Answers are grounded directly in your internal documentation with verified source citations.</p>
     </section>
 
+    <!-- Pipeline Mode Toggle — Standard RAG (:8002) vs Agentic RAG (:8005) -->
+    <div class="mode-toggle" role="group" aria-label="Answering pipeline">
+      <button
+        type="button"
+        class="mode-option"
+        [class.active]="activeMode() === 'standard'"
+        [disabled]="isLoading()"
+        [attr.aria-pressed]="activeMode() === 'standard'"
+        (click)="setMode('standard')"
+        title="Fixed pipeline: hybrid retrieval, Gemini rerank, Gemini generation">
+        <i class="fa-solid fa-bolt"></i>
+        <span>Standard RAG</span>
+      </button>
+      <button
+        type="button"
+        class="mode-option"
+        [class.active]="activeMode() === 'agentic'"
+        [disabled]="isLoading()"
+        [attr.aria-pressed]="activeMode() === 'agentic'"
+        (click)="setMode('agentic')"
+        title="LangGraph agent: intent routing, relevance grading, bounded retry, grounding verification">
+        <i class="fa-solid fa-brain"></i>
+        <span>Agentic RAG</span>
+      </button>
+    </div>
+
     <!-- Quick Prompts (Only shown before searching) -->
     @if (messages().length === 0) {
       <div class="quick-chips">
@@ -42,13 +68,73 @@
           <div class="message ai-card">
             <div class="ai-card-header">
               <div class="ai-badge">
-                <i class="fa-solid fa-file-contract"></i>
+                <i class="fa-solid" [class.fa-brain]="msg.agentMode === 'agentic'"
+                   [class.fa-file-contract]="msg.agentMode !== 'agentic'"></i>
               </div>
-              <span class="ai-name">CogniDoc Answer</span>
+              <span class="ai-name">
+                {{ msg.agentMode === 'agentic' ? 'CogniDoc Agentic Answer' : 'CogniDoc Answer' }}
+              </span>
+
+              <!-- Agentic telemetry — only rendered for agentic answers -->
+              @if (msg.agentMode === 'agentic') {
+                <span class="agent-tags">
+                  @switch (agentStatus(msg)) {
+                    @case ('greeting') {
+                      <span class="agent-tag neutral" title="Handled locally by the router — no retrieval, no LLM call">
+                        <i class="fa-solid fa-comment-dots"></i> Greeting
+                      </span>
+                    }
+                    @case ('grounded') {
+                      <span class="agent-tag ok" title="Citations verified against the retrieved context">
+                        <i class="fa-solid fa-shield-halved"></i> Grounded
+                      </span>
+                    }
+                    @case ('unverified') {
+                      <span class="agent-tag warn" title="Citations or context overlap could not be verified">
+                        <i class="fa-solid fa-triangle-exclamation"></i> Unverified
+                      </span>
+                    }
+                    @case ('no-match') {
+                      <span class="agent-tag neutral" title="No indexed chunk passed the relevance threshold, so no answer was generated">
+                        <i class="fa-solid fa-magnifying-glass-minus"></i> No match
+                      </span>
+                    }
+                  }
+                  @if (confidenceLabel(msg); as conf) {
+                    <span class="agent-tag neutral" title="Retrieval + grounding confidence">
+                      <i class="fa-solid fa-gauge-high"></i> {{ conf }}
+                    </span>
+                  }
+                  @if (msg.cached) {
+                    <span class="agent-tag neutral" title="Served from the 5-minute response cache — 0 API calls">
+                      <i class="fa-solid fa-bolt-lightning"></i> Cached
+                    </span>
+                  }
+                  @if (msg.retryCount) {
+                    <span class="agent-tag neutral" title="Retrieval was retried with a broadened query">
+                      <i class="fa-solid fa-rotate"></i> Retry {{ msg.retryCount }}
+                    </span>
+                  }
+                  <span class="agent-tag neutral" title="Gemini generation calls spent on this answer">
+                    <i class="fa-solid fa-microchip"></i> {{ msg.apiCallsUsed ?? 0 }} LLM call{{ (msg.apiCallsUsed ?? 0) === 1 ? '' : 's' }}
+                  </span>
+                </span>
+              }
             </div>
 
             <div class="ai-card-body">
               <p>{{ msg.content }}</p>
+
+              <!-- Graph path — makes the route the agent took auditable -->
+              @if (msg.agentMode === 'agentic' && msg.graphPath && msg.graphPath.length > 0) {
+                <div class="graph-path" title="LangGraph nodes visited, in order">
+                  <i class="fa-solid fa-diagram-project"></i>
+                  @for (node of msg.graphPath; track $index) {
+                    <span class="node">{{ node }}</span>
+                    @if (!$last) { <span class="arrow">→</span> }
+                  }
+                </div>
+              }
 
               <!-- User Feedback Buttons (Thumbs Up / Down) -->
               @if (msg.queryLogId) {
@@ -108,7 +194,7 @@
             <div class="ai-badge spin">
               <i class="fa-solid fa-circle-notch"></i>
             </div>
-            <span class="ai-name">Searching Knowledge Base & Generating Answer...</span>
+            <span class="ai-name">{{ loadingLabel() }}</span>
           </div>
         </div>
       }

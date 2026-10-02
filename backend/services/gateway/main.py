@@ -56,6 +56,12 @@ SERVICE_MAP = {
     "/api/chat":      settings.RAG_SERVICE_URL,
     "/api/metrics":   settings.METRICS_SERVICE_URL,
     "/api/judge":     settings.JUDGE_SERVICE_URL,
+    # Agentic RAG (LangGraph) on port 8005 — a separate pipeline from /api/chat,
+    # which stays pointed at the untouched baseline rag_service.
+    # Registered here rather than as its own @app.api_route so it inherits the
+    # existing verify_token dependency and pooled-client proxy semantics instead
+    # of duplicating (and potentially bypassing) them.
+    "/api/agent":     settings.AGENTIC_RAG_SERVICE_URL,
 }
 
 

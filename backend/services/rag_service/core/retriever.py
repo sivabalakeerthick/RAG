@@ -8,7 +8,7 @@ import asyncio
 from langchain_chroma import Chroma
 from langchain_community.retrievers import BM25Retriever
 from langchain_core.documents import Document as LCDocument
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from shared.config import settings
@@ -27,28 +27,58 @@ def _get_dense_retriever():
     return store.as_retriever(search_kwargs={"k": settings.DENSE_TOP_K})
 
 
+class _CachedBM25:
+    """In-memory cache for BM25Retriever to avoid rebuilding index on every query."""
+
+    def __init__(self):
+        self.retriever: BM25Retriever | None = None
+        self.chunk_count: int = -1
+
+    async def get(self, db: AsyncSession) -> BM25Retriever | None:
+        count_result = await db.execute(select(func.count(Chunk.id)))
+        current_count = count_result.scalar() or 0
+
+        if current_count == 0:
+            self.retriever = None
+            self.chunk_count = 0
+            return None
+
+        # Reuse cached retriever if corpus chunk count hasn't changed
+        if self.retriever is not None and self.chunk_count == current_count:
+            return self.retriever
+
+        result = await db.execute(select(Chunk).order_by(Chunk.document_id, Chunk.chunk_index))
+        all_chunks = result.scalars().all()
+
+        if not all_chunks:
+            self.retriever = None
+            self.chunk_count = 0
+            return None
+
+        docs = [
+            LCDocument(
+                page_content=c.text,
+                metadata={
+                    "document_id": str(c.document_id),
+                    "chunk_index": c.chunk_index,
+                    "chroma_id": c.chroma_id,
+                },
+            )
+            for c in all_chunks
+        ]
+        retriever = BM25Retriever.from_documents(docs)
+        retriever.k = settings.SPARSE_TOP_K
+        self.retriever = retriever
+        self.chunk_count = current_count
+        return self.retriever
+
+
+_bm25_cache = _CachedBM25()
+
+
 async def _get_sparse_retriever(db: AsyncSession) -> BM25Retriever | None:
-    """Build LangChain BM25Retriever from PostgreSQL chunks."""
-    result = await db.execute(select(Chunk).order_by(Chunk.document_id, Chunk.chunk_index))
-    all_chunks = result.scalars().all()
-
-    if not all_chunks:
-        return None
-
-    docs = [
-        LCDocument(
-            page_content=c.text,
-            metadata={
-                "document_id": str(c.document_id),
-                "chunk_index": c.chunk_index,
-                "chroma_id": c.chroma_id,
-            },
-        )
-        for c in all_chunks
-    ]
-    retriever = BM25Retriever.from_documents(docs)
-    retriever.k = settings.SPARSE_TOP_K
-    return retriever
+    """Build or retrieve cached LangChain BM25Retriever from PostgreSQL chunks."""
+    return await _bm25_cache.get(db)
 
 
 def _reciprocal_rank_fusion(

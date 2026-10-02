@@ -308,3 +308,13 @@ p {
     color: #10b981; // Security green check/shield
   }
 }
+@media (max-width: 480px) {
+
+  .login-card {
+    padding: 24px 20px !important;
+  }
+
+  .ambient-glow {
+    display: none;
+  }
+}

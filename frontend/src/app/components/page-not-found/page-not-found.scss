@@ -167,3 +167,9 @@ p {
     color: #60a5fa;
   }
 }
+@media (max-width: 480px) {
+
+  .not-found-card {
+    padding: 24px 20px !important;
+  }
+}

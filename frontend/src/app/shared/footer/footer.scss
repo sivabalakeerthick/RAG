@@ -74,3 +74,34 @@
     text-align: center;
   }
 }
+
+@media (max-width: 480px) {
+
+  .modal-footer {
+    flex-direction: column;
+  }
+
+  .modal-footer button {
+    width: 100%;
+  }
+}
+
+
+@media (max-width: 768px) {
+
+  .chunk-drawer {
+    width: 100%;
+    max-width: 100%;
+  }
+}
+@media (max-width: 480px) {
+
+  .footer-left,
+  .footer-right {
+    flex-direction: column;
+  }
+
+  .divider {
+    display: none;
+  }
+}

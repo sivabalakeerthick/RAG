@@ -18,3 +18,33 @@ app-root {
 main, router-outlet + * {
   flex: 1 0 auto;
 }
+
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  overflow-x: hidden;
+}
+
+img,
+video {
+  max-width: 100%;
+  height: auto;
+}
+
+input,
+textarea,
+select {
+  max-width: 100%;
+}
+
+@media (max-width: 768px) {
+  .ambient-glow {
+    display: none !important;
+  }
+}
