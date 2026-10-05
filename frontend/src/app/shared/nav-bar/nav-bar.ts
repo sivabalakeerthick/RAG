@@ -3,6 +3,8 @@ import { CommonModule } from '@angular/common';
 import { RouterModule } from '@angular/router';
 import { MatToolbarModule } from '@angular/material/toolbar';
 import { AuthService } from '../../core/services/auth.service';
+import { LoggerService } from '../../core/services/logger.service';
+import { ToastService } from '../../core/services/toast.service';
 
 @Component({
   selector: 'app-navbar',
@@ -17,7 +19,11 @@ export class Navbar {
   isResetConfirmOpen = false;
   isResetSentModalOpen = false; // Flag controls the confirmation card
 
-  constructor(public authService: AuthService) {}
+  constructor(
+    public authService: AuthService,
+    private logger: LoggerService,
+    private toastService: ToastService
+  ) {}
 
   toggleProfileCard(event: Event): void {
     event.stopPropagation();
@@ -39,15 +45,16 @@ export class Navbar {
     const userEmail = currentUser?.email;
 
     if (!userEmail) {
-      alert('Unable to find user email address.');
+      this.toastService.warning('Unable to find user email address.', 'Password Reset');
       return;
     }
 
     this.isResetSentModalOpen = true;
+    this.logger.info('Requesting password reset email via Auth0', { email: userEmail });
 
     this.authService.sendPasswordResetEmail(userEmail).subscribe({
-      next: () => console.log('Reset email sent via Auth0'),
-      error: (err) => console.log('Auth0 API notice:', err)
+      next: () => this.logger.info('Password reset email sent via Auth0'),
+      error: (err) => this.logger.warn('Auth0 password reset response:', err)
     });
   }
 

@@ -6,6 +6,8 @@ from pydantic import BaseModel
 
 class QueryRequest(BaseModel):
     query: str
+    category: str | None = None
+    document_id: str | None = None
 
 
 class SourceChunk(BaseModel):
@@ -36,6 +38,8 @@ class FeedbackRequest(BaseModel):
 
 class AgentQueryRequest(BaseModel):
     query: str
+    category: str | None = None
+    document_id: str | None = None
 
 
 class AgentCitation(BaseModel):

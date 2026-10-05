@@ -3,6 +3,8 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { AgentMode, ChatMessage, SourceChunk } from '../../models/chat.model';
 import { RagService } from '../../core/services/rag.service';
+import { LoggerService } from '../../core/services/logger.service';
+import { formatUserError } from '../../core/utils/error-formatter';
 
 @Component({
   selector: 'app-home',
@@ -31,9 +33,11 @@ export class Home {
   );
 
   private ragService = inject(RagService);
+  private logger = inject(LoggerService);
 
   setMode(mode: AgentMode): void {
     if (this.isLoading() || this.activeMode() === mode) return;
+    this.logger.info(`Switching query mode to "${mode}"`);
     this.activeMode.set(mode);
   }
 
@@ -54,15 +58,27 @@ export class Home {
     this.isLoading.set(true);
     this.errorMessage.set(null);
 
+    this.logger.info(`Dispatching user query [mode=${mode}]`, { queryLength: query.length });
+
     this.ragService.sendQueryForMode(query, mode).subscribe({
       next: (response) => {
+        this.logger.info(`Received response for [mode=${mode}]`, {
+          latencyMs: response.latencyMs,
+          answered: response.answered,
+          grounded: response.grounded,
+          sourcesCount: response.sources?.length ?? 0,
+        });
+
         // Every field is copied into a fresh object and pushed through
         // signal.update(), so change detection fires without Zone.js.
         this.messages.update((msgs) => [
           ...msgs,
           {
             role: 'ai',
-            content: response.content,
+            content: (response.content || '')
+              .replace(/\[Source:\s*[^\]]+\]/gi, '')
+              .replace(/\s{2,}/g, ' ')
+              .trim(),
             sources: this.uniqueSources(response.sources),
             queryLogId: response.queryLogId,
             userFeedback: response.userFeedback ?? null,
@@ -84,10 +100,12 @@ export class Home {
         this.isLoading.set(false);
       },
       error: (err) => {
-        console.error(`${mode} query failed:`, err);
-        this.errorMessage.set(
-          err?.message || 'Failed to get a response. Please try again.'
+        this.logger.error(`${mode} query failed:`, err);
+        const formatted = formatUserError(
+          err,
+          'Unable to get an answer from CogniDoc. Please try again in a moment.'
         );
+        this.errorMessage.set(formatted.message);
         this.isLoading.set(false);
       },
     });
@@ -119,17 +137,19 @@ export class Home {
   submitFeedback(msg: ChatMessage, feedback: 'thumbs_up' | 'thumbs_down'): void {
     if (!msg.queryLogId || msg.userFeedback === feedback || msg.isFeedbackSubmitting) return;
 
+    this.logger.info(`Submitting feedback "${feedback}" for query log ${msg.queryLogId}`);
     msg.isFeedbackSubmitting = true;
     this.messages.update((msgs) => [...msgs]);
 
     this.ragService.submitFeedback(msg.queryLogId, feedback).subscribe({
       next: () => {
+        this.logger.info(`Feedback recorded for query log ${msg.queryLogId}`);
         msg.userFeedback = feedback;
         msg.isFeedbackSubmitting = false;
         this.messages.update((msgs) => [...msgs]);
       },
       error: (err) => {
-        console.error('Failed to submit feedback:', err);
+        this.logger.error('Failed to submit feedback:', err);
         msg.isFeedbackSubmitting = false;
         this.messages.update((msgs) => [...msgs]);
       },

@@ -9,12 +9,15 @@ import {
   DocumentMetadataUpdate,
   IndexHealth,
 } from '../../models/document.model';
+import { formatUserError } from '../utils/error-formatter';
+import { LoggerService } from './logger.service';
 
 @Injectable({
   providedIn: 'root',
 })
 export class DocumentService {
   private http = inject(HttpClient);
+  private logger = inject(LoggerService);
   private apiUrl = environment.apiUrl;
   private requestTimeout = 60000;
 
@@ -137,12 +140,13 @@ export class DocumentService {
   }
 
   private handleError(error: any) {
-    console.error('API Error:', error);
+    this.logger.error('DocumentService', 'API error:', error);
     if (error.name === 'TimeoutError') {
       return throwError(() => new Error('Request timed out. Please try again.'));
     }
     if (error instanceof HttpErrorResponse) {
-      return throwError(() => new Error(error.error?.detail || error.message || 'An error occurred'));
+      const formatted = formatUserError(error);
+      return throwError(() => new Error(formatted.message));
     }
     return throwError(() => error);
   }

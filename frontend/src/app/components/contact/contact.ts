@@ -1,8 +1,9 @@
-import { Component, signal } from '@angular/core';
+import { Component, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import emailjs from '@emailjs/browser';
 import { environment } from '../../../environments/environment';
+import { LoggerService } from '../../core/services/logger.service';
 
 @Component({
   selector: 'app-contact',
@@ -12,6 +13,8 @@ import { environment } from '../../../environments/environment';
   styleUrl: './contact.scss',
 })
 export class Contact {
+  private logger = inject(LoggerService);
+
   isSubmitting = signal(false);
   isSubmitted = signal(false);
   errorMessage = signal<string | null>(null);
@@ -65,7 +68,7 @@ export class Contact {
         this.formData = { name: '', email: '', category: 'access', message: '' };
       })
       .catch((err) => {
-        console.error('EmailJS error:', err);
+        this.logger.error('EmailJS sending failed:', err);
         this.errorMessage.set('Failed to send your message. Please try again or email us directly.');
         this.isSubmitting.set(false);
       });

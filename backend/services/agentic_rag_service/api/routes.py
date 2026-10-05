@@ -9,6 +9,7 @@ and an intent tag, so the existing /api/chat/feedback endpoint and the metrics
 dashboard work against agentic rows with no changes on their side.
 """
 import logging
+import re
 import time
 
 import httpx
@@ -32,6 +33,7 @@ from services.agentic_rag_service.config import (
 )
 from services.agentic_rag_service.rate_limiter import get_rate_limiter
 from services.agentic_rag_service.graph.workflow import run_workflow
+from services.document_service.core.embedder import embed_query
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -56,7 +58,7 @@ async def agent_query(
     cache = get_cache()
     cache_key = normalise_key(req.query)
 
-    # ── Cache hit: 0 API calls ────────────────────────────────────────────────
+    # ── Cache hit (Exact string): 0 API calls ─────────────────────────────────
     cached = cache.get(cache_key)
     if cached is not None:
         payload = cached.model_copy(
@@ -67,12 +69,34 @@ async def agent_query(
                 "latencyMs": round((time.perf_counter() - started) * 1000, 1),
             }
         )
-        logger.info("[agent] cache hit | %r", req.query)
+        logger.info("[agent] exact cache hit | %r", req.query)
         return payload
 
-    # ── Run the graph ─────────────────────────────────────────────────────────
+    # ── Cache hit (Semantic Vector Match): 0 chunk search, 0 generation calls ─
+    query_vector = None
+    if cache._vectors:
+        try:
+            query_vector = await embed_query(req.query)
+            semantic_cached = cache.get_semantic(query_vector)
+            if semantic_cached is not None:
+                payload = semantic_cached.model_copy(
+                    update={
+                        "cached": True,
+                        "apiCallsUsed": 0,
+                        "embeddingCallsUsed": 1,
+                        "latencyMs": round((time.perf_counter() - started) * 1000, 1),
+                    }
+                )
+                logger.info("[agent] semantic cache hit (0 chunks searched) | %r", req.query)
+                return payload
+        except Exception as sem_exc:
+            logger.debug("[agent] semantic cache check skipped: %s", sem_exc)
+
+    # ── Run the graph with metadata filters ───────────────────────────────────
     try:
-        state = await run_workflow(req.query)
+        state = await run_workflow(
+            req.query, category=req.category, document_id=req.document_id
+        )
     except Exception as exc:
         logger.exception("[agent] workflow failed")
         raise HTTPException(status_code=500, detail=f"Agentic workflow failed: {exc}")
@@ -80,7 +104,9 @@ async def agent_query(
     latency_ms = (time.perf_counter() - started) * 1000
 
     intent = state.get("intent", "retrieval")
-    answer = state.get("answer", "") or ""
+    raw_answer = state.get("answer", "") or ""
+    answer = re.sub(r"\[Source:\s*[^\]]+\]", "", raw_answer, flags=re.IGNORECASE).strip()
+    answer = re.sub(r" {2,}", " ", answer)
     citations = [AgentCitation(**c) for c in (state.get("citations") or [])]
     docs = state.get("retrieved_docs") or []
 
@@ -91,19 +117,22 @@ async def agent_query(
     # documents did not support the answer, and listing them under a
     # "not found" reply would imply the opposite.
     answered = bool(state.get("is_relevant")) and int(state.get("api_calls_used", 0)) > 0
-    sources = (
-        [
-            SourceChunk(
-                id=str(i),
-                fileName=str(d.get("filename", "Unknown Document")),
-                chunkLocation=f"Chunk {d.get('chunk_index', i)}",
-                score=f"{max(0.0, float(d.get('similarity', 0.0))):.0%}",
+    seen_files = set()
+    sources = []
+    if answered:
+        for i, d in enumerate(docs):
+            fname = str(d.get("filename", "Unknown Document"))
+            if fname in seen_files:
+                continue
+            seen_files.add(fname)
+            sources.append(
+                SourceChunk(
+                    id=str(i),
+                    fileName=fname,
+                    chunkLocation=f"Chunk {d.get('chunk_index', i)}",
+                    score=f"{max(0.0, float(d.get('rrf_score', d.get('similarity', 0.0)))):.0%}",
+                )
             )
-            for i, d in enumerate(docs)
-        ]
-        if answered
-        else []
-    )
 
     response = AgentChatMessage(
         role="ai",
@@ -162,7 +191,7 @@ async def agent_query(
     # Only cache answers actually grounded in documents. Caching a rate-limit
     # notice or a "not found" would serve a transient failure for 5 minutes.
     if state.get("grounded") and intent == "retrieval" and not state.get("error"):
-        cache.set(cache_key, response)
+        cache.set(cache_key, response, vector=query_vector)
 
     logger.info(
         "[agent] intent=%s llm_calls=%d embed_calls=%d retries=%d grounded=%s %.0fms path=%s",

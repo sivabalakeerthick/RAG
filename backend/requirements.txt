@@ -38,10 +38,14 @@ google-genai==2.22.0
 groq==0.37.1
 
 # Document extraction
-PyMuPDF==1.26.1                # PDF
+PyMuPDF==1.28.2                # PDF (must match pymupdf4llm)
+pymupdf4llm==1.28.2            # Markdown PDF extraction
 python-docx==1.1.2             # DOCX
+mammoth==1.13.0                # Clean DOCX-to-Markdown HTML extraction
 openpyxl==3.1.5                # XLSX
 xlrd==2.0.1                    # XLS (legacy Excel)
+pandas==3.0.6                  # Structured Excel/CSV Markdown formatting
+tabulate==0.10.0               # Table formatting for pandas Markdown export
 
 # RAG utilities
 rank-bm25==0.2.2               # BM25 sparse retrieval

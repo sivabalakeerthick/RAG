@@ -1,6 +1,7 @@
 import { Routes } from '@angular/router';
 import { authGuard } from './core/guards/auth.guard';
 import { adminGuard } from './core/guards/admin.guard';
+import { loginGuard } from './core/guards/login.guard';
 
 export const routes: Routes = [
   {
@@ -12,6 +13,7 @@ export const routes: Routes = [
   {
     path: 'login',
     loadComponent: () => import('./components/login/login').then((m) => m.Login),
+    canActivate: [loginGuard],
   },
 
   {
@@ -45,13 +47,13 @@ export const routes: Routes = [
   },
 
   {
-    path: '**',
-    redirectTo: 'page-not-found',
-  },
-  
-  {
     path: 'page-not-found',
     loadComponent: () =>
       import('./components/page-not-found/page-not-found').then((m) => m.PageNotFound),
+  },
+
+  {
+    path: '**',
+    redirectTo: 'page-not-found',
   },
 ];

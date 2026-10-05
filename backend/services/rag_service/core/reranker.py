@@ -1,11 +1,14 @@
-import asyncio
 from langchain_core.output_parsers import JsonOutputParser
 from langchain_core.prompts import PromptTemplate
 from langchain_google_genai import ChatGoogleGenerativeAI
 from pydantic import BaseModel, Field
 
 from shared.config import settings
+from shared.gemini_key_manager import get_gemini_api_key
+from shared.logger import get_logger
 from shared.ssl_config import google_client_args
+
+logger = get_logger("rag_service.reranker")
 
 # 1. Update Pydantic models to expect a list of scores linked by an ID
 class PassageScore(BaseModel):
@@ -30,10 +33,11 @@ _prompt = PromptTemplate(
     partial_variables={"format_instructions": _parser.get_format_instructions()},
 )
 
+
 def _get_reranker_chain():
     model = ChatGoogleGenerativeAI(
         model=settings.GEMINI_GENERATION_MODEL,
-        google_api_key=settings.GEMINI_API_KEY,
+        google_api_key=get_gemini_api_key(),
         temperature=0.0,
         # INCREASED TOKENS: The LLM needs more tokens to output a list of 10 JSON objects
         max_output_tokens=1024, 
@@ -68,12 +72,11 @@ async def rerank_chunks(query: str, chunks: list[dict]) -> list[dict]:
             chunk["rerank_score"] = float(score_map.get(i, chunk.get("rrf_score", 0.0)))
             
     except Exception as e:
-        print(f"Listwise reranking failed: {e}")
+        logger.warning(f"Listwise reranking failed, falling back to RRF scores: {e}")
         # Fallback to rrf_score if the LLM request fails entirely
         for chunk in chunks:
             chunk["rerank_score"] = chunk.get("rrf_score", 0.0)
 
     # 6. Sort and return the chunks based on the new Gemini scores
     sorted_chunks = sorted(chunks, key=lambda x: x.get("rerank_score", 0.0), reverse=True)
-    #print(sorted_chunks)
     return sorted_chunks

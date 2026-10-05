@@ -4,6 +4,8 @@ import { toSignal } from '@angular/core/rxjs-interop';
 import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { environment } from '../../../environments/environment';
+import { LoggerService } from './logger.service';
+import { ToastService } from './toast.service';
 
 @Injectable({
   providedIn: 'root',
@@ -11,6 +13,8 @@ import { environment } from '../../../environments/environment';
 export class AuthService {
   private auth0 = inject(Auth0Service);
   private http = inject(HttpClient);
+  private logger = inject(LoggerService);
+  private toastService = inject(ToastService);
 
   private auth0Domain = environment.auth0.domain;
   private clientId = environment.auth0.clientId;
@@ -22,27 +26,33 @@ export class AuthService {
   constructor() {
     this.auth0.error$.subscribe((err) => {
       if (err) {
-        console.error('[Auth0 Service] Global Auth0 error occurred:', err);
+        this.logger.error('Global Auth0 error occurred:', err);
       }
     });
   }
 
   login(): void {
-    console.log('[AuthService] Initiating Auth0 loginWithRedirect...');
-    console.log('[AuthService] Domain:', this.auth0Domain, '| ClientId:', this.clientId);
+    this.logger.info('Initiating Auth0 login redirect', {
+      domain: this.auth0Domain,
+      clientId: this.clientId,
+    });
     
     this.auth0.loginWithRedirect({
       appState: { target: '/home' },
     }).subscribe({
-      next: () => console.log('[AuthService] loginWithRedirect emitted next (redirecting)'),
+      next: () => this.logger.debug('Auth0 loginWithRedirect initiated'),
       error: (err) => {
-        console.error('[AuthService] loginWithRedirect error:', err);
-        alert('Auth0 Login Error: ' + (err?.message || JSON.stringify(err)));
+        this.logger.error('Auth0 loginWithRedirect failed:', err);
+        this.toastService.error(
+          'Unable to sign in right now. Please verify your connection and try again.',
+          'Authentication Error'
+        );
       },
     });
   }
 
   logout(): void {
+    this.logger.info('User initiated logout');
     sessionStorage.clear();
     localStorage.clear();
 
@@ -51,7 +61,7 @@ export class AuthService {
         returnTo: window.location.origin,
       },
     }).subscribe({
-      error: (err) => console.error('Auth0 logout error:', err),
+      error: (err) => this.logger.error('Auth0 logout error:', err),
     });
   }
 
@@ -59,16 +69,33 @@ export class AuthService {
     return this.auth0.getAccessTokenSilently();
   }
 
-  hasRole(role: string): boolean {
-    const currentUser = this.user();
-    const roles = (currentUser?.['https://angular-app.com/roles'] as string[]) ?? [];
-    return roles.includes(role);
+  getUserRoles(user?: any): string[] {
+    const u = user ?? this.user();
+    if (!u) return [];
+
+    const raw =
+      u['https://angular-app.com/roles'] ??
+      u['https://cognidoc-api/roles'] ??
+      u['https://cognidoc.com/roles'] ??
+      u['roles'] ??
+      u['user_metadata']?.roles ??
+      u['app_metadata']?.roles ??
+      [];
+
+    if (Array.isArray(raw)) return raw;
+    if (typeof raw === 'string') return [raw];
+    return [];
   }
 
-  hasAnyRole(roles: string[]): boolean {
-    const currentUser = this.user();
-    const userRoles = (currentUser?.['https://angular-app.com/roles'] as string[]) ?? [];
-    return roles.some((role) => userRoles.includes(role));
+  hasRole(role: string, targetUser?: any): boolean {
+    const roles = this.getUserRoles(targetUser);
+    return roles.some((r) => r.toLowerCase() === role.toLowerCase());
+  }
+
+  hasAnyRole(roles: string[], targetUser?: any): boolean {
+    const userRoles = this.getUserRoles(targetUser);
+    const lowerRoles = roles.map((r) => r.toLowerCase());
+    return userRoles.some((r) => lowerRoles.includes(r.toLowerCase()));
   }
 
   // Auth0 Change Password Request

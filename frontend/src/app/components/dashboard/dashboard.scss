@@ -9,41 +9,6 @@
   overflow: hidden;
 }
 
-// Toast Notification
-.toast-notification {
-  position: fixed;
-  top: 80px;
-  right: 24px;
-  z-index: 3000;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  background: rgba(18, 24, 38, 0.95);
-  backdrop-filter: blur(16px);
-  border: 1px solid rgba(16, 185, 129, 0.35);
-  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5),
-              0 0 20px rgba(16, 185, 129, 0.2);
-  padding: 12px 18px;
-  border-radius: 12px;
-  color: #f8fafc;
-  font-size: 0.875rem;
-  font-weight: 500;
-  animation: slideInDown 0.3s ease-out;
-
-  .toast-icon { color: #34d399; font-size: 1.1rem; }
-  .toast-close {
-    background: transparent;
-    border: none;
-    color: #64748b;
-    cursor: pointer;
-    font-size: 0.9rem;
-    padding: 2px;
-    margin-left: 6px;
-
-    &:hover { color: #ffffff; }
-  }
-}
-
 // Ambient glows
 .ambient-glow {
   position: absolute;

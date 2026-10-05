@@ -1,5 +1,6 @@
 import {
   ApplicationConfig,
+  ErrorHandler,
   provideBrowserGlobalErrorListeners,
   provideZonelessChangeDetection,
 } from '@angular/core';
@@ -10,6 +11,8 @@ import { provideAuth0 } from '@auth0/auth0-angular';
 import { routes } from './app.routes';
 import { environment } from '../environments/environment';
 import { authInterceptor } from './core/interceptors/auth.interceptor';
+import { errorInterceptor } from './core/interceptors/error.interceptor';
+import { GlobalErrorHandler } from './core/services/global-error-handler';
 
 export const appConfig: ApplicationConfig = {
   providers: [
@@ -18,7 +21,8 @@ export const appConfig: ApplicationConfig = {
     provideZonelessChangeDetection(),
     provideBrowserGlobalErrorListeners(),
     provideRouter(routes, withEnabledBlockingInitialNavigation()),
-    provideHttpClient(withInterceptors([authInterceptor])),
+    provideHttpClient(withInterceptors([authInterceptor, errorInterceptor])),
+    { provide: ErrorHandler, useClass: GlobalErrorHandler },
     provideAuth0({
       domain: environment.auth0.domain,
       clientId: environment.auth0.clientId,

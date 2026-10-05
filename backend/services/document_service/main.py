@@ -18,14 +18,21 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from shared.config import settings
 from shared.db.postgres import create_tables
+from shared.error_handler import register_error_handlers
+from shared.logger import setup_logger
+from shared.logging_middleware import RequestLoggingMiddleware
 from api.routes import router
+
+logger = setup_logger("document_service")
 
 os.makedirs(settings.UPLOAD_DIR, exist_ok=True)
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    logger.info("Initializing Document Service database tables...")
     await create_tables()
+    logger.info("Document Service ready.")
     yield
 
 
@@ -35,6 +42,9 @@ app = FastAPI(
     version="1.0.0",
     lifespan=lifespan,
 )
+
+register_error_handlers(app)
+app.add_middleware(RequestLoggingMiddleware)
 
 app.add_middleware(
     CORSMiddleware,

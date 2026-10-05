@@ -16,12 +16,19 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from shared.db.postgres import create_tables
+from shared.error_handler import register_error_handlers
+from shared.logger import setup_logger
+from shared.logging_middleware import RequestLoggingMiddleware
 from api.routes import router
+
+logger = setup_logger("rag_service")
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    logger.info("Initializing RAG Service database tables...")
     await create_tables()
+    logger.info("RAG Service ready.")
     yield
 
 
@@ -31,6 +38,9 @@ app = FastAPI(
     version="1.0.0",
     lifespan=lifespan,
 )
+
+register_error_handlers(app)
+app.add_middleware(RequestLoggingMiddleware)
 
 app.add_middleware(
     CORSMiddleware,

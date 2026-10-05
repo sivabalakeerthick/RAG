@@ -1,39 +1,41 @@
-<div class="login-page">
-  <!-- Glowing ambient light sources -->
-  <div class="ambient-glow glow-1"></div>
-  <div class="ambient-glow glow-2"></div>
+@if (!authService.isLoading() && !authService.isAuthenticated()) {
+  <div class="login-page">
+    <!-- Glowing ambient light sources -->
+    <div class="ambient-glow glow-1"></div>
+    <div class="ambient-glow glow-2"></div>
 
-  <mat-card class="login-card">
-    <div class="card-header">
-      <div class="logo-container">
-        <div class="ai-icon">
-          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-            <polyline points="14 2 14 8 20 8"></polyline>
-            <path d="M10 12h.01"></path>
-            <path d="M10 16h.01"></path>
-            <path d="M14 12h.01"></path>
-            <path d="M14 16h.01"></path>
-          </svg>
+    <mat-card class="login-card">
+      <div class="card-header">
+        <div class="logo-container">
+          <div class="ai-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+              <polyline points="14 2 14 8 20 8"></polyline>
+              <path d="M10 12h.01"></path>
+              <path d="M10 16h.01"></path>
+              <path d="M14 12h.01"></path>
+              <path d="M14 16h.01"></path>
+            </svg>
+          </div>
         </div>
+        <span class="badge">Enterprise AI</span>
       </div>
-      <span class="badge">Enterprise AI</span>
-    </div>
 
-    <h1>CogniDoc</h1>
-    <h2>Grounded Document Intelligence</h2>
+      <h1>CogniDoc</h1>
+      <h2>Grounded Document Intelligence</h2>
 
-    <p>AI-powered answers sourced directly from your internal enterprise documentation.</p>
+      <p>AI-powered answers sourced directly from your internal enterprise documentation.</p>
 
-    <button mat-raised-button color="primary" class="login-btn" (click)="login()">
-      <span>Sign In / Sign Up</span>
-    </button>
+      <button mat-raised-button color="primary" class="login-btn" (click)="login()">
+        <span>Sign In / Sign Up</span>
+      </button>
 
-    <div class="trust-footer">
-      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
-      </svg>
-      <span>Powered by Auth0</span>
-    </div>
-  </mat-card>
-</div>
+      <div class="trust-footer">
+        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+        </svg>
+        <span>Powered by Auth0</span>
+      </div>
+    </mat-card>
+  </div>
+}

@@ -40,10 +40,13 @@ from services.document_service.core.embedder import embed_texts
 from services.document_service.core.indexer import (
     add_to_chroma,
     count_all_vectors,
+    delete_document_summary,
     delete_document_vectors,
     delete_from_chroma,
     get_chunks_from_chroma,
     get_document_vector_ids,
+    index_document_summary,
+    purge_orphaned_vectors,
     update_document_vector_metadata,
 )
 from shared.config import settings
@@ -113,13 +116,19 @@ async def index_health(db: AsyncSession = Depends(get_db)):
     """
     Compare chunk rows in PostgreSQL against vectors in ChromaDB so the
     dashboard can flag drift instead of quietly showing two different numbers.
-    Lives here because the persistent Chroma client is single-process and this
-    service owns it.
+    Reconciles and purges orphaned vectors from interrupted uploads/crashes.
     """
     rows_result = await db.execute(select(func.count(Chunk.id)))
     chunk_rows = rows_result.scalar() or 0
 
     try:
+        # Purge orphaned vectors whose document_id no longer exists in Postgres
+        valid_docs_res = await db.execute(select(Document.id))
+        valid_doc_ids = {str(d_id) for d_id in valid_docs_res.scalars().all()}
+        purged_count = purge_orphaned_vectors(valid_doc_ids)
+        if purged_count > 0:
+            logger.info("Reconciliation purged %d orphaned ChromaDB vectors.", purged_count)
+
         vectors = count_all_vectors()
     except Exception as exc:
         logger.warning("Could not read ChromaDB vector count: %s", exc)
@@ -223,12 +232,34 @@ async def upload_document(
         doc.updated_at = datetime.utcnow()
         await db.flush()
 
+        # Store document-level summary vector for Stage 1 hierarchical search
+        if embeddings and texts:
+            index_document_summary(
+                document_id=str(doc.id),
+                name=file.filename,
+                category=category,
+                summary_text=texts[0][:1000],
+                embedding=embeddings[0],
+            )
+
         logger.info(
             "Indexed '%s': %d chunks, %d tokens avg",
             file.filename, len(chunks),
             sum(c["tokens"] for c in chunks) // len(chunks) if chunks else 0,
         )
 
+    except HTTPException:
+        if chroma_ids_written:
+            try:
+                delete_from_chroma(chroma_ids_written)
+            except Exception as chroma_err:
+                logger.error("ChromaDB rollback also failed: %s", chroma_err)
+        try:
+            os.remove(file_path)
+        except OSError:
+            pass
+        await db.rollback()
+        raise
     except Exception as exc:
         # ── ROLLBACK: remove ChromaDB vectors written in this request ──────────
         if chroma_ids_written:
@@ -245,6 +276,16 @@ async def upload_document(
             pass
 
         await db.rollback()
+        err_str = str(exc)
+        if "RESOURCE_EXHAUSTED" in err_str or "429" in err_str:
+            raise HTTPException(
+                status_code=429,
+                detail=(
+                    "Google Gemini free-tier embedding quota (100 requests/min) exceeded. "
+                    "Please wait ~45 seconds before uploading, or configure multiple "
+                    "Gemini API keys in .env (GEMINI_API_KEYS=key1,key2,...) to expand quota."
+                ),
+            )
         raise HTTPException(status_code=500, detail=f"Upload failed: {exc}")
 
     return _fmt_doc(doc, len(chunks))
@@ -305,6 +346,7 @@ async def delete_document(doc_id: str, db: AsyncSession = Depends(get_db)):
         # Purge by document_id tag rather than by the chroma_ids tracked in PG,
         # so vectors orphaned by an earlier failure are removed too.
         removed = delete_document_vectors(str(doc_uuid))
+        delete_document_summary(str(doc_uuid))
         logger.info("Deleted %d ChromaDB vectors for document %s", removed, doc_id)
     except Exception as chroma_err:
         logger.error("ChromaDB delete failed for doc %s: %s", doc_id, chroma_err)
@@ -350,7 +392,15 @@ async def reindex_document(doc_id: str, db: AsyncSession = Depends(get_db)):
 
         texts = [c["text"] for c in chunks]
         embeddings = await embed_texts(texts)
+    except HTTPException:
+        raise
     except Exception as exc:
+        err_str = str(exc)
+        if "RESOURCE_EXHAUSTED" in err_str or "429" in err_str:
+            raise HTTPException(
+                status_code=429,
+                detail="Google Gemini embedding quota (100 requests/min) exceeded. Please wait a moment before re-indexing.",
+            )
         raise HTTPException(status_code=500, detail=f"Reindex failed: {exc}")
 
     # ── Swap in the new index ─────────────────────────────────────────────────
@@ -393,6 +443,15 @@ async def reindex_document(doc_id: str, db: AsyncSession = Depends(get_db)):
         doc.chunks_count = len(chunks)
         doc.updated_at = datetime.utcnow()
         await db.flush()
+
+        if embeddings and texts:
+            index_document_summary(
+                document_id=str(doc.id),
+                name=doc.original_filename,
+                category=doc.category,
+                summary_text=texts[0][:1000],
+                embedding=embeddings[0],
+            )
 
     except Exception as exc:
         if chroma_ids_written:
@@ -496,4 +555,5 @@ def _guess_content_type(filename: str) -> str:
         "txt":  "text/plain",
         "xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         "xls":  "application/vnd.ms-excel",
+        "csv":  "text/csv",
     }.get(ext, "text/plain")

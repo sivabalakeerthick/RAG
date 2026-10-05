@@ -110,6 +110,10 @@ _MIGRATIONS = (
     # on agent_mode/intent does not silently drop all historical queries.
     "UPDATE query_logs SET agent_mode = 'standard' WHERE agent_mode IS NULL;",
     "UPDATE query_logs SET intent = 'retrieval' WHERE intent IS NULL;",
+    # ── Native PostgreSQL Full-Text Search (GIN) & Fast Filtering Indexes ─────
+    "CREATE INDEX IF NOT EXISTS idx_chunks_document_id ON chunks(document_id);",
+    "CREATE INDEX IF NOT EXISTS idx_documents_category ON documents(category);",
+    "CREATE INDEX IF NOT EXISTS idx_chunks_fts ON chunks USING gin(to_tsvector('english', text));",
 )
 
 

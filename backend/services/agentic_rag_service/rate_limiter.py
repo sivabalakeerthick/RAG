@@ -15,6 +15,7 @@ import time
 from collections import deque
 from functools import lru_cache
 
+from shared.gemini_key_manager import get_gemini_key_count
 from services.agentic_rag_service.config import (
     RATE_LIMIT_MAX_CALLS,
     RATE_LIMIT_MAX_WAIT_SECONDS,
@@ -33,7 +34,7 @@ class RateLimitExceeded(Exception):
 
 
 class SlidingWindowRateLimiter:
-    """Allows at most `max_calls` acquisitions per rolling `window` seconds."""
+    """Allows at most `max_calls` acquisitions per rolling `window` seconds across all configured keys."""
 
     def __init__(
         self,
@@ -41,11 +42,15 @@ class SlidingWindowRateLimiter:
         window: float = RATE_LIMIT_WINDOW_SECONDS,
         max_wait: float = RATE_LIMIT_MAX_WAIT_SECONDS,
     ):
-        self._max_calls = max_calls
+        self._base_max_calls = max_calls
         self._window = window
         self._max_wait = max_wait
         self._calls: deque[float] = deque()
         self._lock = asyncio.Lock()
+
+    @property
+    def max_calls(self) -> int:
+        return self._base_max_calls * get_gemini_key_count()
 
     def _evict(self, now: float) -> None:
         cutoff = now - self._window
@@ -66,9 +71,8 @@ class SlidingWindowRateLimiter:
                 now = time.monotonic()
                 self._evict(now)
 
-                if len(self._calls) < self._max_calls:
-                    # Slot reserved while still holding the lock, so two
-                    # concurrent callers can never claim the same slot.
+                if len(self._calls) < self.max_calls:
+                    # Slot reserved while still holding the lock
                     self._calls.append(now)
                     return
 
@@ -86,11 +90,13 @@ class SlidingWindowRateLimiter:
         now = time.monotonic()
         cutoff = now - self._window
         used = sum(1 for t in self._calls if t > cutoff)
+        effective_limit = self.max_calls
         return {
             "used": used,
-            "limit": self._max_calls,
-            "remaining": max(0, self._max_calls - used),
+            "limit": effective_limit,
+            "remaining": max(0, effective_limit - used),
             "windowSeconds": self._window,
+            "keysConfigured": get_gemini_key_count(),
         }
 
 

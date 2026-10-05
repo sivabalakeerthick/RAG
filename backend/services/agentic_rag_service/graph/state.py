@@ -16,10 +16,12 @@ class AgenticRAGState(TypedDict, total=False):
     type checker demanding every key.
     """
 
-    # ── Input ────────────────────────────────────────────────────────────────
+    # ── Input & Metadata Filters ─────────────────────────────────────────────
     question: str
-    # Whitespace-normalised question used for retrieval and caching.
     cleaned_query: str
+    category: str | None
+    document_id: str | None
+    query_vector: List[float] | None
 
     # ── Routing ──────────────────────────────────────────────────────────────
     # 'greeting' | 'retrieval' | 'out_of_scope'
@@ -55,12 +57,19 @@ class AgenticRAGState(TypedDict, total=False):
     error: str
 
 
-def initial_state(question: str) -> AgenticRAGState:
+def initial_state(
+    question: str,
+    category: str | None = None,
+    document_id: str | None = None,
+) -> AgenticRAGState:
     """Build a fully-populated starting state so no node reads a missing key."""
     cleaned = " ".join(question.split())
     return AgenticRAGState(
         question=question,
         cleaned_query=cleaned,
+        category=category,
+        document_id=document_id,
+        query_vector=None,
         intent="retrieval",
         retrieved_docs=[],
         is_relevant=False,

@@ -22,8 +22,10 @@ from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from shared.db.postgres import Chunk, Document, QueryLog, get_db
+from shared.logger import get_logger
 from shared.models.document import DashboardMetrics
 
+logger = get_logger("metrics_service.api")
 router = APIRouter()
 
 # ── Metrics In-Memory Cache (15s TTL) ─────────────────────────────────────────
@@ -41,7 +43,10 @@ async def get_metrics(
 ):
     now = time.time()
     if not refresh and _metrics_cache["data"] is not None and (now - _metrics_cache["timestamp"] < METRICS_CACHE_TTL):
+        logger.debug("Returning metrics from in-memory cache")
         return _metrics_cache["data"]
+
+    logger.debug("Calculating live dashboard metrics from database")
 
     thirty_days_ago = datetime.utcnow() - timedelta(days=30)
 

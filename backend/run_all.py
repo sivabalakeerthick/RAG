@@ -36,8 +36,12 @@ def _check_interpreter():
     instead of the venv produced six identical ModuleNotFoundError tracebacks
     with no indication of the actual cause, so the check happens up front.
     """
-    venv_python = BACKEND_DIR / "venv" / "Scripts" / "python.exe"
+    venv_python = BACKEND_DIR / ".venv" / "Scripts" / "python.exe"
+    if not venv_python.exists():
+        venv_python = BACKEND_DIR / "venv" / "Scripts" / "python.exe"
     if not venv_python.exists():  # POSIX layout
+        venv_python = BACKEND_DIR / ".venv" / "bin" / "python"
+    if not venv_python.exists():
         venv_python = BACKEND_DIR / "venv" / "bin" / "python"
 
     try:

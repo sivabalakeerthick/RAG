@@ -8,6 +8,12 @@ import os
 import sys
 from pathlib import Path
 
+# Fix Windows cp1252 encoding for unicode/emojis in terminal
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+if hasattr(sys.stderr, "reconfigure"):
+    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+
 # Add backend to path
 BACKEND_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(BACKEND_DIR))
@@ -113,9 +119,9 @@ def verify_configuration():
     print(f"\n{Color.BOLD}Configuration Check...{Color.RESET}")
 
     checks = [
-        ("Database URL", settings.DATABASE_URL, "postgresql://"),
-        ("Chroma Path", settings.CHROMA_PERSIST_PATH, "/"),
-        ("Upload Dir", settings.UPLOAD_DIR, "/"),
+        ("Database URL", settings.DATABASE_URL, ("postgresql://", "postgresql+asyncpg://")),
+        ("Chroma Path", settings.CHROMA_PERSIST_PATH, ("/", "\\")),
+        ("Upload Dir", settings.UPLOAD_DIR, ("/", "\\")),
         ("Chunk Size", settings.CHUNK_SIZE, 0),
         ("Max Upload (MB)", settings.MAX_UPLOAD_SIZE_MB, 0),
         ("Auth0 Domain", settings.AUTH0_DOMAIN, ""),
@@ -123,7 +129,9 @@ def verify_configuration():
 
     config_ok = True
     for name, value, valid_indicator in checks:
-        if isinstance(valid_indicator, str):
+        if isinstance(valid_indicator, (list, tuple)):
+            ok = any(ind in str(value) for ind in valid_indicator) if value else False
+        elif isinstance(valid_indicator, str):
             ok = valid_indicator in str(value) if value else False
         else:
             ok = bool(value and value > valid_indicator)

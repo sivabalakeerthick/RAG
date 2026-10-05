@@ -22,22 +22,25 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from shared.db.postgres import create_tables
+from shared.error_handler import register_error_handlers
+from shared.logger import setup_logger
+from shared.logging_middleware import RequestLoggingMiddleware
 from services.agentic_rag_service.api.routes import router
 from services.agentic_rag_service.graph.workflow import get_app as get_graph_app
 
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+logger = setup_logger("agentic_rag")
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Runs the same idempotent migrations as every other service, so whichever
     # service boots first adds the agent_mode/intent columns.
+    logger.info("Initializing Agentic RAG Service database tables...")
     await create_tables()
     # Compile the graph at startup rather than on the first request, so the
     # first user query is not slowed by graph construction.
     get_graph_app()
-    logger.info("[agentic-rag] ready on port 8005")
+    logger.info("Agentic RAG Service ready on port 8005.")
     yield
 
 
@@ -51,6 +54,9 @@ app = FastAPI(
     version="1.0.0",
     lifespan=lifespan,
 )
+
+register_error_handlers(app)
+app.add_middleware(RequestLoggingMiddleware)
 
 app.add_middleware(
     CORSMiddleware,

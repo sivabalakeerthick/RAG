@@ -1,14 +1,4 @@
 <div class="dashboard-container">
-  <!-- Toast Notification Bar (Displays for 2 seconds) -->
-  @if (notificationMessage(); as message) {
-    <div class="toast-notification">
-      <i class="fa-solid fa-circle-check toast-icon"></i>
-      <span>{{ message }}</span>
-      <button class="toast-close" (click)="notificationMessage.set(null)">
-        <i class="fa-solid fa-xmark"></i>
-      </button>
-    </div>
-  }
 
   <div class="ambient-glow glow-1"></div>
   <div class="ambient-glow glow-2"></div>

@@ -32,7 +32,9 @@ from shared.models.chat import (
 from services.rag_service.core.retriever import hybrid_retrieve
 from services.rag_service.core.reranker import rerank_chunks
 from services.rag_service.core.generator import generate_answer
+from shared.logger import get_logger
 
+logger = get_logger("rag_service.api")
 router = APIRouter()
 
 
@@ -47,8 +49,10 @@ async def query(
 
     start_ms = time.time() * 1000
 
-    # 1-4: Hybrid retrieval + RRF fusion
-    ranked_chunks = await hybrid_retrieve(req.query, db)
+    # 1-4: Hybrid retrieval + RRF fusion (Dense + Sparse with Stage 1 & pre-filtering)
+    ranked_chunks = await hybrid_retrieve(
+        req.query, db, category=req.category, document_id=req.document_id
+    )
 
     if not ranked_chunks:
         return ChatMessage(
@@ -57,24 +61,28 @@ async def query(
             sources=[],
         )
 
-    # 5: Reranking with Gemini
-    reranked = await rerank_chunks(req.query, ranked_chunks)
-    final_chunks = reranked[: settings.FINAL_TOP_K]
+    # Top 10 RRF-fused candidate chunks sent directly to Gemini Flash in 1 API call
+    final_chunks = ranked_chunks[: settings.RERANK_TOP_K]
 
-    # 6: Answer generation
-    context = "\n\n---\n\n".join(c["text"] for c in final_chunks)
-    answer_text = await generate_answer(req.query, context)
+    # 5: Single-call answer generation with clean context formatting
+    answer_text = await generate_answer(req.query, final_chunks)
 
-    # Build sources for frontend
-    sources = [
-        SourceChunk(
-            id=str(i),
-            fileName=c.get("filename", "Unknown"),
-            chunkLocation=f"Chunk {c.get('chunk_index', i)}",
-            score=f"{c.get('rrf_score', 0):.0%}",
+    # 6: Build clean unique file citations for frontend
+    seen_files = set()
+    sources = []
+    for i, c in enumerate(final_chunks):
+        fname = str(c.get("filename", "Unknown Document"))
+        if fname in seen_files:
+            continue
+        seen_files.add(fname)
+        sources.append(
+            SourceChunk(
+                id=str(i),
+                fileName=fname,
+                chunkLocation=f"Chunk {c.get('chunk_index', i)}",
+                score=f"{c.get('rrf_score', 0):.0%}",
+            )
         )
-        for i, c in enumerate(final_chunks)
-    ]
 
     latency_ms = (time.time() * 1000) - start_ms
 
@@ -91,12 +99,13 @@ async def query(
     log_id = str(log.id)
 
     # 8: Async LLM-as-Judge evaluation (non-blocking)
+    context_str = "\n\n".join(c.get("text", "") for c in final_chunks)
     background_tasks.add_task(
         _call_judge,
         query_log_id=log_id,
         query=req.query,
         answer=answer_text,
-        context=context,
+        context=context_str[:4000],
     )
 
     return ChatMessage(
@@ -157,4 +166,4 @@ async def _call_judge(query_log_id: str, query: str, answer: str, context: str) 
             )
     except Exception as exc:
         # Judge failure is non-critical — log and continue
-        print(f"[Judge] evaluation failed for log {query_log_id}: {exc}")
+        logger.warning(f"[Judge] evaluation failed for log {query_log_id}: {exc}")

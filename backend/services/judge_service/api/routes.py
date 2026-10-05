@@ -8,21 +8,23 @@ Evaluates a RAG answer using LangChain ChatGroq (openai/gpt-oss-120b):
 
 Scores are parsed via LangChain JsonOutputParser and written back to query_logs in PostgreSQL.
 """
+import uuid
 from fastapi import APIRouter, Depends, HTTPException
 from langchain_core.output_parsers import JsonOutputParser
 from langchain_core.prompts import PromptTemplate
+from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_groq import ChatGroq
 from sqlalchemy import update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from shared.config import settings
 from shared.db.postgres import QueryLog, get_db
+from shared.gemini_key_manager import get_gemini_api_key
+from shared.logger import get_logger
 from shared.models.chat import JudgeEvalRequest, JudgeScore
-from shared.ssl_config import groq_client_args
-from shared.ssl_config import google_client_args
-from langchain_google_genai import ChatGoogleGenerativeAI
+from shared.ssl_config import google_client_args, groq_client_args
 
-
+logger = get_logger("judge_service.api")
 router = APIRouter()
 
 _parser = JsonOutputParser(pydantic_object=JudgeScore)
@@ -56,7 +58,7 @@ def _get_judge_chain():
     # )
     llm = ChatGoogleGenerativeAI(
         model=settings.GEMINI_GENERATION_MODEL,
-        google_api_key=settings.GEMINI_API_KEY,
+        google_api_key=get_gemini_api_key(),
         temperature=0.0,
         max_output_tokens=1024,
         client_args=google_client_args(),
@@ -70,14 +72,13 @@ async def evaluate(req: JudgeEvalRequest, db: AsyncSession = Depends(get_db)):
     Evaluate the RAG answer via LangChain ChatGoogleGenerativeAI chain and write scores back to query_logs.
     Called asynchronously by the RAG service background task.
     """
-    import uuid
-
     # Validate query_log_id is a valid UUID
     try:
         query_log_uuid = uuid.UUID(req.query_log_id)
     except (ValueError, AttributeError):
         raise HTTPException(status_code=400, detail="Invalid query_log_id format. Must be a valid UUID.")
 
+    logger.info(f"Evaluating answer for query_log_id: {req.query_log_id}")
     chain = _get_judge_chain()
 
     try:
@@ -87,6 +88,7 @@ async def evaluate(req: JudgeEvalRequest, db: AsyncSession = Depends(get_db)):
             "answer": req.answer,
         })
     except Exception as exc:
+        logger.error(f"Judge evaluation failed for {req.query_log_id}: {exc}")
         raise HTTPException(status_code=502, detail=f"LangChain GoogleGenerativeAI evaluation failed: {exc}")
 
     # Validate and clamp scores
@@ -95,6 +97,11 @@ async def evaluate(req: JudgeEvalRequest, db: AsyncSession = Depends(get_db)):
     completeness = max(0.0, min(10.0, float(scores.get("completeness", 0))))
     verdict = str(scores.get("verdict", "FAIL")).upper()
     reasoning = str(scores.get("reasoning", ""))
+
+    logger.info(
+        f"Judge evaluation completed for {req.query_log_id}: "
+        f"verdict={verdict}, faithfulness={faithfulness:.1f}, relevance={relevance:.1f}, completeness={completeness:.1f}"
+    )
 
     # Write scores back to PostgreSQL query_logs
     await db.execute(

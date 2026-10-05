@@ -16,12 +16,10 @@ RATE_LIMIT_WINDOW_SECONDS = 60.0
 RATE_LIMIT_MAX_WAIT_SECONDS = 30.0
 
 # ── Retrieval ─────────────────────────────────────────────────────────────────
-# Deliberately smaller than the baseline service's 20+20: the agentic path sends
-# chunks straight to generation with no LLM reranker, so precision at small K
-# matters more than recall at large K.
-RETRIEVE_TOP_K = 4
-# Widened K used on the single retry pass after a relevance failure.
-RETRIEVE_RETRY_TOP_K = 8
+# 10 chunks matching Baseline Hybrid RAG's RRF fused candidates
+RETRIEVE_TOP_K = 10
+# Widened K used on the single retry pass if initial query yielded no candidates.
+RETRIEVE_RETRY_TOP_K = 10
 
 # Candidates pulled from the stores before local dedup narrows them to top_k.
 # Retrieval is free (no generation quota), so fetching wide costs nothing but
@@ -46,6 +44,7 @@ GRAPH_RECURSION_LIMIT = 15
 # ── Response cache ────────────────────────────────────────────────────────────
 CACHE_TTL_SECONDS = 300.0   # 5 minutes
 CACHE_MAX_ENTRIES = 256
+SEMANTIC_CACHE_THRESHOLD = 0.93  # Minimum cosine similarity for semantic cache hit (0 chunk searches)
 
 # ── Generation ────────────────────────────────────────────────────────────────
 # Reuse the model the rest of the app is configured with rather than hardcoding
@@ -54,7 +53,7 @@ GENERATION_MODEL = settings.GEMINI_GENERATION_MODEL
 GENERATION_TEMPERATURE = 0.2
 GENERATION_MAX_TOKENS = 1024
 # Hard cap on context characters handed to the single LLM call.
-MAX_CONTEXT_CHARS = 8000
+MAX_CONTEXT_CHARS = 12000
 
 # ── Canned greeting reply (0 API calls) ───────────────────────────────────────
 GREETING_REPLY = (

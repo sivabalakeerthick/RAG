@@ -11,6 +11,7 @@ from functools import lru_cache
 from shared.config import settings
 
 COLLECTION_NAME = "cognidoc_chunks"
+DOC_COLLECTION_NAME = "cognidoc_documents"
 
 
 @lru_cache
@@ -27,5 +28,14 @@ def get_collection() -> chromadb.Collection:
     client = get_chroma_client()
     return client.get_or_create_collection(
         name=COLLECTION_NAME,
+        metadata={"hnsw:space": "cosine"},
+    )
+
+
+def get_document_collection() -> chromadb.Collection:
+    """Get or create the document-level collection for Stage 1 hierarchical retrieval."""
+    client = get_chroma_client()
+    return client.get_or_create_collection(
+        name=DOC_COLLECTION_NAME,
         metadata={"hnsw:space": "cosine"},
     )

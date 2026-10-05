@@ -9,7 +9,7 @@ interrupted request are still cleaned up and the two stores stay in sync.
 """
 from functools import lru_cache
 from langchain_chroma import Chroma
-from shared.db.chroma import COLLECTION_NAME, get_chroma_client
+from shared.db.chroma import COLLECTION_NAME, get_chroma_client, get_document_collection
 from services.document_service.core.embedder import get_embeddings_model
 
 
@@ -137,4 +137,32 @@ def purge_orphaned_vectors(valid_document_ids: set[str]) -> int:
         store._collection.delete(ids=orphaned_ids)
 
     return len(orphaned_ids)
+
+
+def index_document_summary(
+    document_id: str,
+    name: str,
+    category: str,
+    summary_text: str,
+    embedding: list[float],
+) -> None:
+    """Index document-level summary embedding into cognidoc_documents for Stage 1 hierarchical search."""
+    try:
+        doc_collection = get_document_collection()
+        doc_collection.upsert(
+            ids=[document_id],
+            embeddings=[embedding],
+            documents=[summary_text],
+            metadatas=[{"document_id": document_id, "name": name, "category": category}],
+        )
+    except Exception:
+        pass
+
+
+def delete_document_summary(document_id: str) -> None:
+    """Remove document-level vector when document is deleted."""
+    try:
+        get_document_collection().delete(ids=[document_id])
+    except Exception:
+        pass
 

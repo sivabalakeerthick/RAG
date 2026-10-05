@@ -95,7 +95,11 @@ def get_app():
     return _compiled
 
 
-async def run_workflow(question: str) -> AgenticRAGState:
+async def run_workflow(
+    question: str,
+    category: str | None = None,
+    document_id: str | None = None,
+) -> AgenticRAGState:
     """
     Execute the graph for one question and return the final state.
 
@@ -105,7 +109,7 @@ async def run_workflow(question: str) -> AgenticRAGState:
     """
     app = get_app()
     result = await app.ainvoke(
-        initial_state(question),
+        initial_state(question, category=category, document_id=document_id),
         config={"recursion_limit": GRAPH_RECURSION_LIMIT},
     )
     return result

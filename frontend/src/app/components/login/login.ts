@@ -2,6 +2,7 @@ import { Component, inject } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
 import { AuthService } from '../../core/services/auth.service';
+import { LoggerService } from '../../core/services/logger.service';
 
 @Component({
   selector: 'app-login',
@@ -15,10 +16,11 @@ import { AuthService } from '../../core/services/auth.service';
 })
 export class Login {
 
-  private authService = inject(AuthService);
+  protected authService = inject(AuthService);
+  private logger = inject(LoggerService);
 
   login(): void {
-    console.log('[Login Component] Sign In / Sign Up button clicked');
+    this.logger.info('User clicked Sign In / Sign Up button');
     this.authService.login();
   }
 }

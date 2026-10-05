@@ -8,6 +8,9 @@ import {
   VectorChunk,
 } from '../../models/document.model';
 import { DocumentService } from '../../core/services/document.service';
+import { ToastService } from '../../core/services/toast.service';
+import { LoggerService } from '../../core/services/logger.service';
+import { formatUserError } from '../../core/utils/error-formatter';
 
 interface CategoryOption {
   value: string;
@@ -26,9 +29,6 @@ export class Dashboard implements OnInit {
   selectedDocForDrawer = signal<DocumentFile | null>(null);
   drawerChunks = signal<VectorChunk[]>([]);
   isDrawerLoading = signal(false);
-
-  // Notification Toast State
-  notificationMessage = signal<string | null>(null);
 
   // Knowledge categories — shared by the upload and edit-metadata modals
   readonly categories: CategoryOption[] = [
@@ -85,6 +85,8 @@ export class Dashboard implements OnInit {
   isRefreshing = signal(false);
 
   private documentService = inject(DocumentService);
+  private toastService = inject(ToastService);
+  private logger = inject(LoggerService);
 
   ngOnInit(): void {
     // 1. Instant hydration from persistent SWR cache (0ms delay, zero spinners)
@@ -152,7 +154,7 @@ export class Dashboard implements OnInit {
   private applyMetrics(m: DashboardMetrics): void {
     this.monthlyQueries.set(m.monthlyQueries);
     this.groundingRate.set(m.groundingRate);
-    this.avgLatencyMs.set(m.avgLatencyMs / 10);
+    this.avgLatencyMs.set(m.avgLatencyMs);
     this.precision.set(m.precision || '—');
     this.recall.set(m.recall || '—');
     this.f1Score.set(m.f1Score || '—');
@@ -176,16 +178,15 @@ export class Dashboard implements OnInit {
     if (this.documents().length === 0) {
       this.isLoadingDocs.set(true);
     }
+    this.logger.debug('Loading documents', { force });
     this.documentService.getDocuments(force).subscribe({
       next: (docs) => {
+        this.logger.debug(`Loaded ${docs.length} documents`);
         this.documents.set(docs);
         this.isLoadingDocs.set(false);
       },
       error: (err) => {
-        console.error('Failed to load documents:', err);
-        if (this.documents().length === 0) {
-          this.showNotification(`Could not load documents: ${err.message ?? 'unknown error'}`);
-        }
+        this.logger.error('Failed to load documents:', err);
         this.isLoadingDocs.set(false);
       },
     });
@@ -194,7 +195,7 @@ export class Dashboard implements OnInit {
   private loadMetrics(force = false): void {
     this.documentService.getMetrics(force).subscribe({
       next: (m) => this.applyMetrics(m),
-      error: (err) => console.error('Failed to load metrics:', err),
+      error: (err) => this.logger.error('Failed to load metrics:', err),
     });
   }
 
@@ -202,7 +203,7 @@ export class Dashboard implements OnInit {
     this.documentService.getIndexHealth(force).subscribe({
       next: (h) => this.applyIndexHealth(h),
       error: (err) => {
-        console.error('Failed to load index health:', err);
+        this.logger.error('Failed to load index health:', err);
         this.hasIndexHealth.set(false);
       },
     });
@@ -214,6 +215,7 @@ export class Dashboard implements OnInit {
    * cards, the table and the vector store never drift apart.
    */
   refreshDashboard(force = true): void {
+    this.logger.info('Refreshing dashboard data', { force });
     this.isRefreshing.set(true);
     this.documentService.getDocuments(force).subscribe({
       next: (docs) => {
@@ -222,7 +224,7 @@ export class Dashboard implements OnInit {
         this.syncOpenDrawer(docs);
       },
       error: (err) => {
-        console.error('Failed to refresh documents:', err);
+        this.logger.error('Failed to refresh documents:', err);
         this.isRefreshing.set(false);
       },
     });
@@ -242,12 +244,21 @@ export class Dashboard implements OnInit {
     }
   }
 
-  // Toast Notification Helper (auto-dismiss after 2 seconds)
+  // Toast Notification Helper (delegates to the unified global ToastService)
   showNotification(msg: string): void {
-    this.notificationMessage.set(msg);
-    setTimeout(() => {
-      this.notificationMessage.set(null);
-    }, 2000);
+    const lower = msg.toLowerCase();
+    const isError =
+      lower.startsWith('error') ||
+      lower.includes('failed') ||
+      lower.includes('could not') ||
+      lower.includes('resource_exhausted');
+
+    if (isError) {
+      const formatted = formatUserError(msg);
+      this.toastService.error(formatted.message, formatted.title);
+    } else {
+      this.toastService.success(msg);
+    }
   }
 
   // Upload Modal Handlers
@@ -299,7 +310,10 @@ export class Dashboard implements OnInit {
     const ext = file.name.split('.').pop()?.toLowerCase();
     const validExts = ['pdf', 'docx', 'doc', 'txt', 'xlsx', 'xls'];
     if (!validTypes.includes(file.type) && !validExts.includes(ext ?? '')) {
-      this.showNotification('Error: Please upload a PDF, DOCX, TXT, XLSX, or XLS file.');
+      this.toastService.warning(
+        'Please select a supported file format: PDF, Word (DOCX), Text, or Excel (XLSX).',
+        'Unsupported File'
+      );
       return;
     }
     this.selectedFile.set(file);
@@ -350,9 +364,18 @@ export class Dashboard implements OnInit {
     const file = this.selectedFile();
     if (!file || this.isUploading()) return;
     this.isUploading.set(true);
+    this.logger.info(`Starting upload of "${file.name}"`, {
+      size: file.size,
+      category: this.selectedCategory,
+    });
 
     this.documentService.uploadDocument(file, this.selectedCategory).subscribe({
       next: (newDoc) => {
+        this.logger.info(`Uploaded document successfully`, {
+          id: newDoc.id,
+          name: newDoc.name,
+          chunks: newDoc.chunksCount,
+        });
         this.isUploadModalOpen.set(false);
         this.isUploading.set(false);
         this.showNotification(`Document "${newDoc.name}" uploaded successfully!`);
@@ -361,26 +384,27 @@ export class Dashboard implements OnInit {
         this.refreshDashboard();
       },
       error: (err) => {
-        console.error('Upload failed:', err);
+        this.logger.error('Upload failed:', err);
         this.isUploading.set(false);
-        this.showNotification(`Upload failed: ${err.message ?? 'unknown error'}`);
       },
     });
   }
 
   // Chunk Drawer Handlers
   openChunkDrawer(doc: DocumentFile): void {
+    this.logger.info(`Opening chunk drawer for document ${doc.id} ("${doc.name}")`);
     this.selectedDocForDrawer.set(doc);
     this.drawerChunks.set([]);
     this.isDrawerLoading.set(true);
 
     this.documentService.getChunks(doc.id).subscribe({
       next: (chunks) => {
+        this.logger.debug(`Loaded ${chunks.length} chunks for document ${doc.id}`);
         this.drawerChunks.set(chunks);
         this.isDrawerLoading.set(false);
       },
       error: (err) => {
-        console.error('Failed to load chunks:', err);
+        this.logger.error('Failed to load chunks:', err);
         this.isDrawerLoading.set(false);
         this.showNotification('Error: Could not load vector chunks.');
       },
@@ -436,19 +460,23 @@ export class Dashboard implements OnInit {
     if (!doc || this.isSavingEdit() || !this.isEditDirty()) return;
 
     this.isSavingEdit.set(true);
+    const newName = this.editName().trim();
+    const newCategory = this.editCategory();
+    this.logger.info(`Saving metadata update for doc ${doc.id}`, { newName, newCategory });
+
     this.documentService
-      .updateDocument(doc.id, { name: this.editName().trim(), category: this.editCategory() })
+      .updateDocument(doc.id, { name: newName, category: newCategory })
       .subscribe({
         next: (updated) => {
+          this.logger.info(`Metadata updated successfully for doc ${updated.id}`);
           this.isSavingEdit.set(false);
           this.docPendingEdit.set(null);
           this.showNotification(`Metadata updated for "${updated.name}".`);
           this.refreshDashboard();
         },
         error: (err) => {
-          console.error('Metadata update failed:', err);
+          this.logger.error('Metadata update failed:', err);
           this.isSavingEdit.set(false);
-          this.showNotification(`Error: ${err.message ?? 'could not update metadata'}`);
         },
       });
   }
@@ -474,10 +502,14 @@ export class Dashboard implements OnInit {
   reindexDoc(doc: DocumentFile): void {
     if (this.isReindexing(doc.id)) return;
     this.setReindexing(doc.id, true);
+    this.logger.info(`Initiating re-index for doc ${doc.id} ("${doc.name}")`);
     this.showNotification(`Re-indexing "${doc.name}"…`);
 
     this.documentService.reindexDocument(doc.id).subscribe({
       next: (updated) => {
+        this.logger.info(`Re-indexed doc ${updated.id} successfully`, {
+          chunksCount: updated.chunksCount,
+        });
         this.setReindexing(doc.id, false);
         this.showNotification(
           `Re-indexed "${updated.name}" — ${updated.chunksCount} chunks.`
@@ -488,10 +520,8 @@ export class Dashboard implements OnInit {
         }
       },
       error: (err) => {
-        console.error('Reindex failed:', err);
+        this.logger.error('Reindex failed:', err);
         this.setReindexing(doc.id, false);
-        this.showNotification(`Error: ${err.message ?? `failed to re-index ${doc.name}`}`);
-        this.refreshDashboard();
       },
     });
   }
@@ -513,16 +543,16 @@ export class Dashboard implements OnInit {
 
     this.isDeleteConfirmOpen.set(false);
     this.docPendingDelete.set(null);
+    this.logger.info(`Deleting document ${doc.id} ("${doc.name}")`);
 
     this.documentService.deleteDocument(doc.id).subscribe({
       next: () => {
+        this.logger.info(`Document ${doc.id} successfully deleted`);
         this.showNotification(`Removed "${doc.name}" from knowledge base.`);
         this.refreshDashboard();
       },
       error: (err) => {
-        console.error('Delete failed:', err);
-        this.showNotification(`Error: Failed to delete "${doc.name}".`);
-        this.refreshDashboard();
+        this.logger.error('Delete failed:', err);
       },
     });
   }

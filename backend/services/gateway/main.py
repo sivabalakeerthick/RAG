@@ -18,6 +18,11 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from shared.config import settings
 from shared.auth.jwt_validator import verify_token
+from shared.error_handler import register_error_handlers
+from shared.logger import setup_logger
+from shared.logging_middleware import RequestLoggingMiddleware
+
+logger = setup_logger("gateway")
 
 _proxy_client: httpx.AsyncClient | None = None
 
@@ -25,6 +30,7 @@ _proxy_client: httpx.AsyncClient | None = None
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     global _proxy_client
+    logger.info("Starting API Gateway proxy client...")
     _proxy_client = httpx.AsyncClient(
         timeout=300.0,
         limits=httpx.Limits(max_keepalive_connections=50, max_connections=100),
@@ -32,6 +38,7 @@ async def lifespan(app: FastAPI):
     yield
     if _proxy_client:
         await _proxy_client.aclose()
+        logger.info("API Gateway proxy client closed.")
 
 
 app = FastAPI(
@@ -40,6 +47,9 @@ app = FastAPI(
     version="1.0.0",
     lifespan=lifespan,
 )
+
+register_error_handlers(app)
+app.add_middleware(RequestLoggingMiddleware)
 
 app.add_middleware(
     CORSMiddleware,

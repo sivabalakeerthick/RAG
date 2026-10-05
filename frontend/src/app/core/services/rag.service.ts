@@ -3,9 +3,13 @@ import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { Observable, timeout, catchError, throwError } from 'rxjs';
 import { environment } from '../../../environments/environment';
 import { AgentMode, ChatMessage } from '../../models/chat.model';
+import { formatUserError } from '../utils/error-formatter';
+import { LoggerService } from './logger.service';
 
 export interface QueryRequest {
   query: string;
+  category?: string;
+  document_id?: string;
 }
 
 /** Response shape of GET /api/agent/health. */
@@ -26,13 +30,16 @@ export interface AgentHealth {
 })
 export class RagService {
   private http = inject(HttpClient);
+  private logger = inject(LoggerService);
   private apiUrl = environment.apiUrl;
   private requestTimeout = 120000;
 
-  /** Baseline RAG pipeline — rag_service on port 8002. Unchanged. */
-  sendQuery(query: string): Observable<ChatMessage> {
+  /** Baseline RAG pipeline — rag_service on port 8002. */
+  sendQuery(query: string, category?: string, documentId?: string): Observable<ChatMessage> {
     return this.http.post<ChatMessage>(`${this.apiUrl}/api/chat/query`, {
       query,
+      category,
+      document_id: documentId,
     } satisfies QueryRequest).pipe(
       timeout(this.requestTimeout),
       catchError(this.handleError)
@@ -43,9 +50,11 @@ export class RagService {
    * Agentic RAG pipeline — LangGraph agentic_rag_service on port 8005.
    * Returns the same ChatMessage shape plus agentic telemetry fields.
    */
-  queryAgent(query: string): Observable<ChatMessage> {
+  queryAgent(query: string, category?: string, documentId?: string): Observable<ChatMessage> {
     return this.http.post<ChatMessage>(`${this.apiUrl}/api/agent/query`, {
       query,
+      category,
+      document_id: documentId,
     } satisfies QueryRequest).pipe(
       timeout(this.requestTimeout),
       catchError(this.handleError)
@@ -53,8 +62,8 @@ export class RagService {
   }
 
   /** Dispatch to whichever pipeline the chat header toggle has selected. */
-  sendQueryForMode(query: string, mode: AgentMode): Observable<ChatMessage> {
-    return mode === 'agentic' ? this.queryAgent(query) : this.sendQuery(query);
+  sendQueryForMode(query: string, mode: AgentMode, category?: string, documentId?: string): Observable<ChatMessage> {
+    return mode === 'agentic' ? this.queryAgent(query, category, documentId) : this.sendQuery(query, category, documentId);
   }
 
   /** Live budget + cache telemetry from the agentic service. */
@@ -76,12 +85,13 @@ export class RagService {
   }
 
   private handleError(error: any) {
-    console.error('RAG API Error:', error);
+    this.logger.error('RAG', 'Query processing error:', error);
     if (error.name === 'TimeoutError') {
       return throwError(() => new Error('Query processing timed out. Please try again.'));
     }
     if (error instanceof HttpErrorResponse) {
-      return throwError(() => new Error(error.error?.detail || error.message || 'Failed to process query'));
+      const formatted = formatUserError(error, 'Failed to process query. Please try again.');
+      return throwError(() => new Error(formatted.message));
     }
     return throwError(() => error);
   }

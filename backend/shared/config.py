@@ -17,6 +17,9 @@ class Settings(BaseSettings):
         extra="ignore"
     )
 
+    # ── Logging ───────────────────────────────────────────
+    LOG_LEVEL: str = "INFO"
+
     # ── PostgreSQL ────────────────────────────────────────
     DATABASE_URL: str = "postgresql+asyncpg://postgres:postgres@localhost:5432/cognidoc"
 
@@ -26,6 +29,7 @@ class Settings(BaseSettings):
 
     # ── Gemini ───────────────────────────────────────────
     GEMINI_API_KEY: str = ""
+    GEMINI_API_KEYS: str = ""  # Comma-separated list of additional Gemini API keys
     GEMINI_GENERATION_MODEL: str = "gemini-3.5-flash-lite"
     GEMINI_EMBEDDING_MODEL: str = "gemini-embedding-2"
 
@@ -82,6 +86,18 @@ class Settings(BaseSettings):
     @property
     def allowed_origins_list(self) -> list[str]:
         return [o.strip() for o in self.ALLOWED_ORIGINS.split(",")]
+
+    @property
+    def gemini_keys_list(self) -> list[str]:
+        keys = []
+        if self.GEMINI_API_KEY and self.GEMINI_API_KEY.strip():
+            keys.append(self.GEMINI_API_KEY.strip())
+        if self.GEMINI_API_KEYS and self.GEMINI_API_KEYS.strip():
+            for k in self.GEMINI_API_KEYS.split(","):
+                k_clean = k.strip()
+                if k_clean and k_clean not in keys:
+                    keys.append(k_clean)
+        return keys
 
 
 @lru_cache
