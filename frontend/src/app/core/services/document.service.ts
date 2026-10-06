@@ -3,6 +3,7 @@ import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { Observable, timeout, catchError, throwError, tap, of } from 'rxjs';
 import { environment } from '../../../environments/environment';
 import {
+  CategoryItem,
   DocumentFile,
   VectorChunk,
   DashboardMetrics,
@@ -23,6 +24,7 @@ export class DocumentService {
 
   // ── SWR In-Memory Cache (Persists across route navigations) ──────────────────
   readonly cachedDocuments = signal<DocumentFile[]>([]);
+  readonly cachedCategories = signal<CategoryItem[]>([]);
   readonly cachedMetrics = signal<DashboardMetrics | null>(null);
   readonly cachedIndexHealth = signal<IndexHealth | null>(null);
 
@@ -83,6 +85,44 @@ export class DocumentService {
       tap(() => {
         this.cachedDocuments.update((docs) => docs.filter((d) => d.id !== id));
         this.invalidateCache();
+      }),
+      catchError(this.handleError)
+    );
+  }
+
+  // ── Categories Management ──────────────────────────────────────────────────
+
+  getCategories(force = false): Observable<CategoryItem[]> {
+    if (!force && this.cachedCategories().length > 0) {
+      return of(this.cachedCategories());
+    }
+    return this.http.get<CategoryItem[]>(`${this.apiUrl}/api/documents/categories`).pipe(
+      timeout(this.requestTimeout),
+      tap((cats) => {
+        this.cachedCategories.set(cats);
+      }),
+      catchError(this.handleError)
+    );
+  }
+
+  createCategory(name: string, description?: string): Observable<CategoryItem> {
+    return this.http.post<CategoryItem>(`${this.apiUrl}/api/documents/categories`, {
+      name,
+      description: description || null,
+    }).pipe(
+      timeout(this.requestTimeout),
+      tap((newCat) => {
+        this.cachedCategories.update((cats) => [...cats, newCat]);
+      }),
+      catchError(this.handleError)
+    );
+  }
+
+  deleteCategory(id: string): Observable<{ message: string; id: string }> {
+    return this.http.delete<{ message: string; id: string }>(`${this.apiUrl}/api/documents/categories/${id}`).pipe(
+      timeout(this.requestTimeout),
+      tap(() => {
+        this.cachedCategories.update((cats) => cats.filter((c) => c.id !== id));
       }),
       catchError(this.handleError)
     );

@@ -1,84 +1,79 @@
 """
-LangGraph StateGraph builder and compiled application.
+LangGraph StateGraph builder for True Agentic RAG.
 
 Graph shape:
 
-                      ┌─────────┐
-                      │ router  │
-                      └────┬────┘
-              greeting     │      retrieval
-        ┌──────────────────┴──────────────────┐
-        ▼                                     ▼
-      (END)                            ┌─────────────┐
-                                       │  retrieve   │◀────┐
-                                       └──────┬──────┘     │
-                                              ▼            │ retry (max 1)
-                                       ┌─────────────┐     │
-                                       │    grade    │─────┘
-                                       └──────┬──────┘
-                                              ▼ generate
-                                       ┌─────────────┐
-                                       │  generate   │  ← only LLM call
-                                       └──────┬──────┘
-                                              ▼
-                                       ┌─────────────┐
-                                       │   verify    │
-                                       └──────┬──────┘
-                                              ▼
-                                            (END)
+              ┌───────────────────┐
+              │  guard_and_route  │
+              └─────────┬─────────┘
+        greeting/blocked│         │ substantive / compound
+        ┌───────────────┘         ▼
+        ▼                      ┌─────┐
+      (END)                    │agent│◀────────────┐
+                               └──┬──┘             │
+                    needs data    │    no tools    │
+                   ┌──────────────┴───────┐        │
+                   ▼                      ▼        │
+               ┌───────┐             ┌────────┐    │
+               │ tools │────────────►│verifier│    │
+               └───────┘             └───┬────┘    │
+                   │                     │         │
+                   └─────────────────────┘─────────┘
+                                         ▼
+                                       (END)
 
-The only cycle is grade -> retrieve, and `should_retry` can only be True on the
-first grading failure, so the cycle executes at most once. `recursion_limit`
-is a second, independent backstop.
+Max 2 tool execution iterations enforced by route_after_agent.
 """
 import logging
+from typing import Any, Dict, List, Optional
 
 from langgraph.graph import END, START, StateGraph
 
 from services.agentic_rag_service.config import GRAPH_RECURSION_LIMIT
 from services.agentic_rag_service.graph.nodes import (
-    generate_node,
-    grade_documents_node,
-    retrieve_node,
-    route_after_grading,
-    route_after_router,
-    router_node,
-    verify_grounding_node,
+    agent_node,
+    guard_and_route_node,
+    route_after_agent,
+    route_after_guard,
+    tool_execution_node,
+    verifier_node,
 )
 from services.agentic_rag_service.graph.state import AgenticRAGState, initial_state
+from shared.query_rewriter import rewrite_query_for_search
 
 logger = logging.getLogger(__name__)
 
 
 def build_workflow() -> StateGraph:
-    """Assemble the uncompiled graph."""
+    """Assemble the autonomous tool-calling graph."""
     graph = StateGraph(AgenticRAGState)
 
-    graph.add_node("router", router_node)
-    graph.add_node("retrieve", retrieve_node)
-    graph.add_node("grade", grade_documents_node)
-    graph.add_node("generate", generate_node)
-    graph.add_node("verify", verify_grounding_node)
+    graph.add_node("guard_and_route", guard_and_route_node)
+    graph.add_node("agent", agent_node)
+    graph.add_node("tools", tool_execution_node)
+    graph.add_node("verifier", verifier_node)
 
-    graph.add_edge(START, "router")
+    graph.add_edge(START, "guard_and_route")
 
-    # Greetings never touch retrieval or generation — 0 API calls.
+    # Tier-1 fast-path: pure greetings / blocked injections exit immediately
     graph.add_conditional_edges(
-        "router",
-        route_after_router,
-        {"greeting": END, "retrieval": "retrieve"},
+        "guard_and_route",
+        route_after_guard,
+        {"end": END, "agent": "agent"},
     )
 
-    graph.add_edge("retrieve", "grade")
-
+    # Agent either emits tool calls or produces final answer
     graph.add_conditional_edges(
-        "grade",
-        route_after_grading,
-        {"retry": "retrieve", "generate": "generate"},
+        "agent",
+        route_after_agent,
+        {"tools": "tools", "verifier": "verifier"},
     )
 
-    graph.add_edge("generate", "verify")
-    graph.add_edge("verify", END)
+    # Tool observations loop back into the agent
+    graph.add_edge("tools", "agent")
+
+    # Verifier finalizes and exits
+    graph.add_edge("verifier", END)
 
     return graph
 
@@ -87,29 +82,44 @@ _compiled = None
 
 
 def get_app():
-    """Compiled graph singleton. Compiling is cheap but not free."""
+    """Compiled graph singleton."""
     global _compiled
     if _compiled is None:
         _compiled = build_workflow().compile()
-        logger.info("[graph] agentic RAG workflow compiled")
+        logger.info("[graph] true agentic RAG workflow compiled")
     return _compiled
 
 
 async def run_workflow(
     question: str,
-    category: str | None = None,
-    document_id: str | None = None,
+    category: Optional[str] = None,
+    document_id: Optional[str] = None,
+    session_id: Optional[str] = None,
+    history: Optional[List[Dict[str, str]]] = None,
 ) -> AgenticRAGState:
     """
-    Execute the graph for one question and return the final state.
-
-    recursion_limit caps total supersteps as a hard stop independent of the
-    should_retry logic, so a future edit that reintroduces a loop fails loudly
-    instead of spinning on the Gemini quota.
+    Execute the tool-calling graph for one question with session context.
     """
     app = get_app()
+
+    rewritten_query = question
+    initial_api_calls = 0
+    if history and len(history) > 0:
+        rewritten_query = await rewrite_query_for_search(question, history=history)
+        if rewritten_query.strip().lower() != question.strip().lower():
+            initial_api_calls = 1
+
+    state = initial_state(
+        question=question,
+        category=category,
+        document_id=document_id,
+        session_id=session_id,
+        history=history,
+        rewritten_query=rewritten_query,
+        initial_api_calls=initial_api_calls,
+    )
     result = await app.ainvoke(
-        initial_state(question, category=category, document_id=document_id),
+        state,
         config={"recursion_limit": GRAPH_RECURSION_LIMIT},
     )
     return result

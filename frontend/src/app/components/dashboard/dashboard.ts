@@ -2,6 +2,7 @@ import { Component, computed, inject, OnInit, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import {
+  CategoryItem,
   DashboardMetrics,
   DocumentFile,
   IndexHealth,
@@ -25,18 +26,26 @@ interface CategoryOption {
   styleUrl: './dashboard.scss',
 })
 export class Dashboard implements OnInit {
-  filterQuery = signal('');
+  // Document Filtering Signals
+  nameFilter = signal('');
+  categoryFilter = signal('all');
+  startDateFilter = signal('');
+  endDateFilter = signal('');
+  filterQuery = this.nameFilter; // backward-compat alias
+
   selectedDocForDrawer = signal<DocumentFile | null>(null);
   drawerChunks = signal<VectorChunk[]>([]);
   isDrawerLoading = signal(false);
 
-  // Knowledge categories — shared by the upload and edit-metadata modals
-  readonly categories: CategoryOption[] = [
-    { value: 'Security & Policy', label: 'Security & Compliance' },
-    { value: 'IT Support', label: 'IT & Infrastructure' },
-    { value: 'Engineering', label: 'Engineering & API Specs' },
-    { value: 'HR & Operations', label: 'HR & Legal Policies' },
-  ];
+  // Dynamic Knowledge Categories
+  categories = signal<CategoryItem[]>([]);
+  isLoadingCategories = signal(false);
+  isCategoryModalOpen = signal(false);
+  newCategoryName = signal('');
+  newCategoryDescription = signal('');
+  isCreatingCategory = signal(false);
+  categoryActionError = signal<string | null>(null);
+  deletingCategoryId = signal<string | null>(null);
 
   // Inline Upload Modal State
   isUploadModalOpen = signal(false);
@@ -95,6 +104,10 @@ export class Dashboard implements OnInit {
       this.documents.set(cachedDocs);
       this.isLoadingDocs.set(false);
     }
+    const cachedCats = this.documentService.cachedCategories();
+    if (cachedCats.length > 0) {
+      this.categories.set(cachedCats);
+    }
     const cachedMetrics = this.documentService.cachedMetrics();
     if (cachedMetrics) {
       this.applyMetrics(cachedMetrics);
@@ -106,21 +119,64 @@ export class Dashboard implements OnInit {
 
     // 2. Silent background revalidation (or first-time fetch)
     this.loadDocuments(false);
+    this.loadCategories(false);
     this.loadMetrics(false);
     this.loadIndexHealth(false);
   }
 
+  readonly hasActiveFilters = computed(() =>
+    Boolean(
+      this.nameFilter().trim() ||
+      this.categoryFilter() !== 'all' ||
+      this.startDateFilter() ||
+      this.endDateFilter()
+    )
+  );
+
   readonly filteredDocuments = computed(() => {
-    const q = this.filterQuery().trim().toLowerCase();
+    const nameQ = this.nameFilter().trim().toLowerCase();
+    const cat = this.categoryFilter();
+    const start = this.startDateFilter();
+    const end = this.endDateFilter();
     const docs = this.documents();
-    if (!q) return docs;
-    return docs.filter(
-      (d) =>
-        d.name.toLowerCase().includes(q) ||
-        d.category.toLowerCase().includes(q) ||
-        d.status.toLowerCase().includes(q)
-    );
+
+    return docs.filter((d) => {
+      // 1. Filter by file name (case-insensitive substring)
+      if (nameQ && !d.name.toLowerCase().includes(nameQ)) {
+        return false;
+      }
+
+      // 2. Filter by category
+      if (cat !== 'all' && d.category !== cat) {
+        return false;
+      }
+
+      // 3. Filter by date range (inclusive)
+      if (start || end) {
+        const rawDate = d.rawDate || d.lastUpdated;
+        const time = new Date(rawDate).getTime();
+        if (!isNaN(time)) {
+          if (start) {
+            const startMs = new Date(`${start}T00:00:00`).getTime();
+            if (time < startMs) return false;
+          }
+          if (end) {
+            const endMs = new Date(`${end}T23:59:59.999`).getTime();
+            if (time > endMs) return false;
+          }
+        }
+      }
+
+      return true;
+    });
   });
+
+  resetFilters(): void {
+    this.nameFilter.set('');
+    this.categoryFilter.set('all');
+    this.startDateFilter.set('');
+    this.endDateFilter.set('');
+  }
 
   // ── Derived metrics ────────────────────────────────────────────────────────
   // The chunk total is summed from the same document list the table renders,
@@ -228,6 +284,7 @@ export class Dashboard implements OnInit {
         this.isRefreshing.set(false);
       },
     });
+    this.loadCategories(force);
     this.loadMetrics(force);
     this.loadIndexHealth(force);
   }
@@ -439,14 +496,101 @@ export class Dashboard implements OnInit {
     this.docPendingEdit.set(null);
   }
 
-  /** Category list for the edit modal, including any value not in the presets. */
+  /** Category list for the edit modal, populated from dynamic categories. */
   readonly editCategoryOptions = computed<CategoryOption[]>(() => {
+    const cats = this.categories().map((c) => ({ value: c.name, label: c.name }));
     const current = this.docPendingEdit()?.category;
-    if (!current || this.categories.some((c) => c.value === current)) {
-      return this.categories;
+    if (!current || cats.some((c) => c.value === current)) {
+      return cats.length > 0 ? cats : [{ value: 'Security & Policy', label: 'Security & Policy' }];
     }
-    return [...this.categories, { value: current, label: current }];
+    return [...cats, { value: current, label: current }];
   });
+
+  // ── Category Management Handlers ──────────────────────────────────────────
+
+  loadCategories(force = false): void {
+    this.isLoadingCategories.set(true);
+    this.documentService.getCategories(force).subscribe({
+      next: (cats) => {
+        this.categories.set(cats);
+        this.isLoadingCategories.set(false);
+        if (cats.length > 0 && !cats.some((c) => c.name === this.selectedCategory)) {
+          this.selectedCategory = cats[0].name;
+        }
+      },
+      error: (err) => {
+        this.logger.error('Failed to load categories:', err);
+        this.isLoadingCategories.set(false);
+      },
+    });
+  }
+
+  openCategoryModal(): void {
+    this.newCategoryName.set('');
+    this.newCategoryDescription.set('');
+    this.categoryActionError.set(null);
+    this.isCategoryModalOpen.set(true);
+    this.loadCategories(true);
+  }
+
+  closeCategoryModal(): void {
+    if (this.isCreatingCategory()) return;
+    this.isCategoryModalOpen.set(false);
+    this.categoryActionError.set(null);
+  }
+
+  createCategory(): void {
+    const name = this.newCategoryName().trim();
+    const desc = this.newCategoryDescription().trim();
+    if (!name || this.isCreatingCategory()) return;
+
+    this.isCreatingCategory.set(true);
+    this.categoryActionError.set(null);
+
+    this.documentService.createCategory(name, desc).subscribe({
+      next: (created) => {
+        this.toastService.success(`Category "${created.name}" created successfully.`);
+        this.newCategoryName.set('');
+        this.newCategoryDescription.set('');
+        this.isCreatingCategory.set(false);
+        this.loadCategories(true);
+      },
+      error: (err) => {
+        const errorMsg = err?.message || 'Failed to create category.';
+        this.categoryActionError.set(errorMsg);
+        this.toastService.error(errorMsg, 'Category Creation Failed');
+        this.isCreatingCategory.set(false);
+      },
+    });
+  }
+
+  deleteCategory(cat: CategoryItem): void {
+    if (cat.documentCount > 0) {
+      this.toastService.warning(
+        `Cannot delete "${cat.name}" because ${cat.documentCount} document(s) are assigned to it.`,
+        'Category In Use'
+      );
+      return;
+    }
+
+    if (this.deletingCategoryId()) return;
+    this.deletingCategoryId.set(cat.id);
+    this.categoryActionError.set(null);
+
+    this.documentService.deleteCategory(cat.id).subscribe({
+      next: () => {
+        this.toastService.success(`Category "${cat.name}" deleted successfully.`);
+        this.deletingCategoryId.set(null);
+        this.loadCategories(true);
+      },
+      error: (err) => {
+        const errorMsg = err?.message || `Failed to delete category "${cat.name}".`;
+        this.categoryActionError.set(errorMsg);
+        this.toastService.error(errorMsg, 'Category Deletion Failed');
+        this.deletingCategoryId.set(null);
+      },
+    });
+  }
 
   readonly isEditDirty = computed(() => {
     const doc = this.docPendingEdit();

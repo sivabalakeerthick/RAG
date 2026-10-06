@@ -7,12 +7,14 @@ source of truth for credentials.
 """
 from shared.config import settings
 
-# ── Gemini free-tier budget ───────────────────────────────────────────────────
-# Free tier allows 15 requests/minute. We cap at 12 to leave headroom for the
-# baseline rag_service and judge_service sharing the same key.
-RATE_LIMIT_MAX_CALLS = 12
+# ── Gemini multi-key throughput budget ─────────────────────────────────────────
+# Free tier allows 15 requests/minute per key.
+# With 6 keys configured (GEMINI_API_KEY + 5 in GEMINI_API_KEYS), total capacity is:
+# 6 keys * 15 RPM = 90 RPM aggregate throughput.
+# We cap at 14 per key to allow up to 84 RPM (1.4 calls/sec) across all keys,
+# leaving safety margin for clock jitter while easily handling 1 call/sec (60 RPM).
+RATE_LIMIT_MAX_CALLS = 14
 RATE_LIMIT_WINDOW_SECONDS = 60.0
-# How long a caller will wait for a free slot before we give up and return 429.
 RATE_LIMIT_MAX_WAIT_SECONDS = 30.0
 
 # ── Retrieval ─────────────────────────────────────────────────────────────────

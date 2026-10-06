@@ -1,6 +1,7 @@
 import { Component, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
 import { AgentMode, ChatMessage, SourceChunk } from '../../models/chat.model';
 import { RagService } from '../../core/services/rag.service';
 import { LoggerService } from '../../core/services/logger.service';
@@ -14,16 +15,20 @@ import { formatUserError } from '../../core/utils/error-formatter';
   styleUrl: './home.scss',
 })
 export class Home {
+  private ragService = inject(RagService);
+  private logger = inject(LoggerService);
+  private sanitizer = inject(DomSanitizer);
+
   searchQuery = signal('');
   isLoading = signal(false);
-  messages = signal<ChatMessage[]>([]);
   errorMessage = signal<string | null>(null);
+  lastFailedQuery = signal<string | null>(null);
+  copiedId = signal<string | null>(null);
 
-  /**
-   * Which pipeline the next query goes to. 'standard' keeps the original
-   * behaviour on port 8002; 'agentic' targets the LangGraph service on 8005.
-   */
-  activeMode = signal<AgentMode>('standard');
+  // ── Connected to singleton RagService (persists across component navigation) ──
+  messages = this.ragService.messages;
+  sessionId = this.ragService.sessionId;
+  activeMode = this.ragService.activeMode;
 
   /** Zoneless-safe derived label for the loading banner. */
   loadingLabel = computed(() =>
@@ -32,13 +37,27 @@ export class Home {
       : 'Searching Knowledge Base & Generating Answer...'
   );
 
-  private ragService = inject(RagService);
-  private logger = inject(LoggerService);
+  clearChat(): void {
+    if (this.isLoading()) return;
+    this.ragService.clearChat();
+    this.errorMessage.set(null);
+    this.lastFailedQuery.set(null);
+    this.searchQuery.set('');
+    this.logger.info('Conversation cleared');
+  }
+
+  resetChat(): void {
+    this.clearChat();
+  }
+
+  newChat(): void {
+    this.clearChat();
+  }
 
   setMode(mode: AgentMode): void {
     if (this.isLoading() || this.activeMode() === mode) return;
     this.logger.info(`Switching query mode to "${mode}"`);
-    this.activeMode.set(mode);
+    this.ragService.setMode(mode);
   }
 
   selectPrompt(promptText: string): void {
@@ -46,21 +65,23 @@ export class Home {
     this.onSearch();
   }
 
-  onSearch(): void {
-    const query = this.searchQuery().trim();
+  onSearch(customQuery?: string): void {
+    const query = (customQuery ?? this.searchQuery()).trim();
     if (!query || this.isLoading()) return;
 
     const mode = this.activeMode();
 
-    // Add user query to conversation
-    this.messages.update((msgs) => [...msgs, { role: 'user', content: query }]);
-    this.searchQuery.set('');
+    // If not a retry, push new user question to conversation
+    if (!customQuery) {
+      this.ragService.addMessage({ role: 'user', content: query });
+      this.searchQuery.set('');
+    }
+
     this.isLoading.set(true);
     this.errorMessage.set(null);
-
     this.logger.info(`Dispatching user query [mode=${mode}]`, { queryLength: query.length });
 
-    this.ragService.sendQueryForMode(query, mode).subscribe({
+    this.ragService.sendQueryForMode(query, mode, this.sessionId()).subscribe({
       next: (response) => {
         this.logger.info(`Received response for [mode=${mode}]`, {
           latencyMs: response.latencyMs,
@@ -69,64 +90,75 @@ export class Home {
           sourcesCount: response.sources?.length ?? 0,
         });
 
-        // Every field is copied into a fresh object and pushed through
-        // signal.update(), so change detection fires without Zone.js.
-        this.messages.update((msgs) => [
-          ...msgs,
-          {
-            role: 'ai',
-            content: (response.content || '')
-              .replace(/\[Source:\s*[^\]]+\]/gi, '')
-              .replace(/\s{2,}/g, ' ')
-              .trim(),
-            sources: this.uniqueSources(response.sources),
-            queryLogId: response.queryLogId,
-            userFeedback: response.userFeedback ?? null,
-            // Trust the server's own label when present, else the mode used.
-            agentMode: response.agentMode ?? mode,
-            citations: response.citations ?? [],
-            intent: response.intent,
-            answered: response.answered,
-            grounded: response.grounded,
-            confidenceScore: response.confidenceScore,
-            apiCallsUsed: response.apiCallsUsed,
-            embeddingCallsUsed: response.embeddingCallsUsed,
-            retryCount: response.retryCount,
-            cached: response.cached,
-            graphPath: response.graphPath ?? [],
-            latencyMs: response.latencyMs,
-          },
-        ]);
+        this.lastFailedQuery.set(null);
+
+        // Add AI response to persistent conversation
+        this.ragService.addMessage({
+          role: 'ai',
+          content: this.cleanContent(response.content || ''),
+          sources: this.uniqueSources(response.sources),
+          queryLogId: response.queryLogId,
+          userFeedback: response.userFeedback ?? null,
+          agentMode: response.agentMode ?? mode,
+          citations: response.citations ?? [],
+          intent: response.intent,
+          answered: response.answered,
+          grounded: response.grounded,
+          confidenceScore: response.confidenceScore,
+          apiCallsUsed: response.apiCallsUsed,
+          embeddingCallsUsed: response.embeddingCallsUsed,
+          retryCount: response.retryCount,
+          cached: response.cached,
+          graphPath: response.graphPath ?? [],
+          toolCalls: response.toolCalls ?? [],
+          sessionId: response.sessionId,
+          latencyMs: response.latencyMs,
+        });
         this.isLoading.set(false);
       },
       error: (err) => {
         this.logger.error(`${mode} query failed:`, err);
         const formatted = formatUserError(
           err,
-          'Unable to get an answer from CogniDoc. Please try again in a moment.'
+          mode === 'agentic'
+            ? 'The assistant could not complete your request. Please try again.'
+            : 'Failed to process your search request. Please try again.'
         );
+        this.lastFailedQuery.set(query);
         this.errorMessage.set(formatted.message);
         this.isLoading.set(false);
       },
     });
   }
 
-  /** Percentage string for the confidence chip, or null when not applicable. */
-  confidenceLabel(msg: ChatMessage): string | null {
-    if (msg.agentMode !== 'agentic' || !msg.answered || msg.confidenceScore == null) {
-      return null;
+  retryQuery(): void {
+    const query = this.lastFailedQuery();
+    if (query) {
+      this.onSearch(query);
+    }
+  }
+
+  copyText(text: string, id: string): void {
+    if (!text) return;
+    navigator.clipboard.writeText(text).then(() => {
+      this.copiedId.set(id);
+      setTimeout(() => {
+        if (this.copiedId() === id) {
+          this.copiedId.set(null);
+        }
+      }, 2000);
+    }).catch((err) => {
+      this.logger.error('Failed to copy to clipboard:', err);
+    });
+  }
+
+  confidenceLabel(msg: ChatMessage): string {
+    if (msg.confidenceScore === undefined || msg.confidenceScore === null) {
+      return '';
     }
     return `${Math.round(msg.confidenceScore * 100)}%`;
   }
 
-  /**
-   * Verification status for the agentic header chip.
-   *
-   * Kept out of the template because the four states are not mutually
-   * derivable from one flag: a cache hit reports 0 API calls but is a real
-   * verified answer, and a "not found" reply is faithful to its context yet
-   * must not be badged as a grounded answer.
-   */
   agentStatus(msg: ChatMessage): 'greeting' | 'grounded' | 'unverified' | 'no-match' | null {
     if (msg.agentMode !== 'agentic') return null;
     if (msg.intent === 'greeting') return 'greeting';
@@ -139,24 +171,19 @@ export class Home {
 
     this.logger.info(`Submitting feedback "${feedback}" for query log ${msg.queryLogId}`);
     msg.isFeedbackSubmitting = true;
-    this.messages.update((msgs) => [...msgs]);
 
     this.ragService.submitFeedback(msg.queryLogId, feedback).subscribe({
       next: () => {
         this.logger.info(`Feedback recorded for query log ${msg.queryLogId}`);
-        msg.userFeedback = feedback;
-        msg.isFeedbackSubmitting = false;
-        this.messages.update((msgs) => [...msgs]);
+        this.ragService.updateMessageFeedback(msg.queryLogId!, feedback);
       },
       error: (err) => {
         this.logger.error('Failed to submit feedback:', err);
         msg.isFeedbackSubmitting = false;
-        this.messages.update((msgs) => [...msgs]);
       },
     });
   }
 
-  /** One entry per source document — chunk positions and scores are not surfaced. */
   private uniqueSources(sources?: SourceChunk[]): SourceChunk[] {
     if (!sources) return [];
 
@@ -166,5 +193,57 @@ export class Home {
       seen.add(s.fileName);
       return true;
     });
+  }
+
+  formatMarkdown(content: string): SafeHtml {
+    if (!content) return '';
+
+    // Escape HTML special characters to prevent XSS
+    let html = content
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
+
+    // Markdown Headers (###, ##, #)
+    html = html.replace(/^###[ \t]+(.*$)/gim, '<h4 class="md-h4">$1</h4>');
+    html = html.replace(/^##[ \t]+(.*$)/gim, '<h3 class="md-h3">$1</h3>');
+    html = html.replace(/^#[ \t]+(.*$)/gim, '<h2 class="md-h2">$1</h2>');
+
+    // Bold + Italic, Bold, Italic
+    html = html.replace(/\*\*\*([^*]+)\*\*\*/g, '<strong><em>$1</em></strong>');
+    html = html.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+    html = html.replace(/\*([^*\n]+)\*/g, '<em>$1</em>');
+
+    // Inline code
+    html = html.replace(/`([^`]+)`/g, '<code class="md-code">$1</code>');
+
+    // Bullet points (* Item or - Item)
+    html = html.replace(/^[\*\-][ \t]+(.*$)/gim, '<div class="md-bullet"><span class="bullet-dot">•</span><span class="bullet-text">$1</span></div>');
+
+    // Numbered lists (1. Item)
+    html = html.replace(/^(\d+)\.[ \t]+(.*$)/gim, '<div class="md-num-item"><span class="num-badge">$1.</span><span class="num-text">$2</span></div>');
+
+    // Paragraph breaks and newlines
+    html = html.replace(/\n\n/g, '<div class="md-spacer"></div>');
+    html = html.replace(/\n/g, '<br/>');
+
+    return this.sanitizer.bypassSecurityTrustHtml(html);
+  }
+
+  private cleanContent(raw: string): string {
+    if (!raw) return '';
+    let text = raw.trim();
+    // Catch stringified LangChain/Gemini parts e.g. [{'type': 'text', 'text': '...'}]
+    if (text.startsWith('[') && (text.includes("'text':") || text.includes('"text":'))) {
+      const match = text.match(/['"]text['"]\s*:\s*['"](.*?)['"](?:\s*,\s*['"]extras['"]|\s*})/s);
+      if (match && match[1]) {
+        text = match[1];
+      }
+    }
+    return text
+      .replace(/\[Source:\s*[^\]]+\]/gi, '')
+      .replace(/[^\S\r\n]{2,}/g, ' ')  // Collapse horizontal spaces only (preserves newlines!)
+      .replace(/\n{3,}/g, '\n\n')      // Normalize excessive empty lines
+      .trim();
   }
 }

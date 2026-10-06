@@ -24,6 +24,24 @@ class DocumentFile(BaseModel):
     chunksCount: int
     status: DocumentStatus
     lastUpdated: str
+    rawDate: str | None = None
+
+
+class CategoryItem(BaseModel):
+    """Category returned to the admin dashboard."""
+    model_config = ConfigDict(populate_by_name=True)
+
+    id: str
+    name: str
+    description: str | None = None
+    documentCount: int = 0
+    createdAt: str | None = None
+
+
+class CategoryCreate(BaseModel):
+    """Payload to create a new knowledge category."""
+    name: str = Field(..., min_length=1, max_length=128)
+    description: str | None = Field(default=None, max_length=256)
 
 
 class VectorChunk(BaseModel):

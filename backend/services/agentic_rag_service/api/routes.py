@@ -1,23 +1,27 @@
 """
 Agentic RAG Service API — port 8005.
 
-  POST /api/agent/query   Run the LangGraph workflow for one question
+  POST /api/agent/query   Run the LangGraph tool-calling workflow for one question
   GET  /api/agent/health  Liveness + live rate-limit / cache telemetry
 
-Answers are logged to the shared `query_logs` table with agent_mode='agentic'
-and an intent tag, so the existing /api/chat/feedback endpoint and the metrics
-dashboard work against agentic rows with no changes on their side.
+Answers are logged to PostgreSQL:
+  - Multi-turn conversation saved to `chat_sessions` and `session_messages`
+  - Quality metrics logged to `query_logs` with agent_mode='agentic'
+  - Async evaluation triggered via judge_service (:8003)
 """
+from datetime import datetime
 import logging
 import re
 import time
+import uuid
 
 import httpx
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from shared.config import settings
-from shared.db.postgres import QueryLog, get_db
+from shared.db.postgres import ChatSession, QueryLog, SessionMessage, get_db
 from shared.models.chat import (
     AgentChatMessage,
     AgentCitation,
@@ -33,6 +37,7 @@ from services.agentic_rag_service.config import (
 )
 from services.agentic_rag_service.rate_limiter import get_rate_limiter
 from services.agentic_rag_service.graph.workflow import run_workflow
+from services.agentic_rag_service.graph.nodes import _extract_text_content
 from services.document_service.core.embedder import embed_query
 
 logger = logging.getLogger(__name__)
@@ -46,10 +51,8 @@ async def agent_query(
     db: AsyncSession = Depends(get_db),
 ):
     """
-    Execute the agentic graph.
-
-    Budget per call: 0 Gemini generation calls for greetings and cache hits,
-    otherwise exactly 1.
+    Execute the autonomous tool-calling LangGraph workflow.
+    Supports multi-turn sessions with sliding-window history.
     """
     if not req.query or not req.query.strip():
         raise HTTPException(status_code=400, detail="Query cannot be empty")
@@ -58,81 +61,91 @@ async def agent_query(
     cache = get_cache()
     cache_key = normalise_key(req.query)
 
-    # ── Cache hit (Exact string): 0 API calls ─────────────────────────────────
-    cached = cache.get(cache_key)
-    if cached is not None:
-        payload = cached.model_copy(
-            update={
-                "cached": True,
-                "apiCallsUsed": 0,
-                "embeddingCallsUsed": 0,
-                "latencyMs": round((time.perf_counter() - started) * 1000, 1),
-            }
-        )
-        logger.info("[agent] exact cache hit | %r", req.query)
-        return payload
+    # ── Multi-turn Session Management ────────────────────────────────────────
+    session_uuid = None
+    history: list[dict[str, str]] = []
 
-    # ── Cache hit (Semantic Vector Match): 0 chunk search, 0 generation calls ─
-    query_vector = None
-    if cache._vectors:
+    if req.session_id:
         try:
-            query_vector = await embed_query(req.query)
-            semantic_cached = cache.get_semantic(query_vector)
-            if semantic_cached is not None:
-                payload = semantic_cached.model_copy(
-                    update={
-                        "cached": True,
-                        "apiCallsUsed": 0,
-                        "embeddingCallsUsed": 1,
-                        "latencyMs": round((time.perf_counter() - started) * 1000, 1),
-                    }
-                )
-                logger.info("[agent] semantic cache hit (0 chunks searched) | %r", req.query)
-                return payload
-        except Exception as sem_exc:
-            logger.debug("[agent] semantic cache check skipped: %s", sem_exc)
+            session_uuid = uuid.UUID(str(req.session_id))
+        except (ValueError, TypeError):
+            session_uuid = uuid.uuid4()
 
-    # ── Run the graph with metadata filters ───────────────────────────────────
+        # Check or create ChatSession in PostgreSQL
+        session_res = await db.execute(select(ChatSession).where(ChatSession.id == session_uuid))
+        existing_session = session_res.scalar_one_or_none()
+        if not existing_session:
+            new_session = ChatSession(id=session_uuid, agent_mode="agentic")
+            db.add(new_session)
+            await db.flush()
+
+        # Load sliding window history (last 4 messages: 2 turns)
+        history_stmt = (
+            select(SessionMessage)
+            .where(SessionMessage.session_id == session_uuid)
+            .order_by(SessionMessage.created_at.desc())
+            .limit(4)
+        )
+        history_rows = (await db.execute(history_stmt)).scalars().all()
+        # Order chronologically for the model
+        history = [{"role": m.role, "content": m.content} for m in reversed(history_rows)]
+
+    # ── Cache hit (Exact string — only for fresh first-turn queries) ──────────
+    if not history:
+        cached = cache.get(cache_key)
+        if cached is not None:
+            payload = cached.model_copy(
+                update={
+                    "cached": True,
+                    "sessionId": str(session_uuid) if session_uuid else None,
+                    "apiCallsUsed": 0,
+                    "embeddingCallsUsed": 0,
+                    "latencyMs": round((time.perf_counter() - started) * 1000, 1),
+                }
+            )
+            logger.info("[agent] exact cache hit | %r", req.query)
+            return payload
+
+    # ── Run the Autonomous Tool-Calling Workflow ─────────────────────────────
     try:
         state = await run_workflow(
-            req.query, category=req.category, document_id=req.document_id
+            req.query,
+            category=req.category,
+            document_id=req.document_id,
+            session_id=str(session_uuid) if session_uuid else None,
+            history=history,
         )
     except Exception as exc:
-        logger.exception("[agent] workflow failed")
+        logger.exception("[agent] workflow execution failed")
         raise HTTPException(status_code=500, detail=f"Agentic workflow failed: {exc}")
 
     latency_ms = (time.perf_counter() - started) * 1000
 
     intent = state.get("intent", "retrieval")
-    raw_answer = state.get("answer", "") or ""
+    raw_answer = _extract_text_content(state.get("answer", "") or "")
     answer = re.sub(r"\[Source:\s*[^\]]+\]", "", raw_answer, flags=re.IGNORECASE).strip()
     answer = re.sub(r" {2,}", " ", answer)
     citations = [AgentCitation(**c) for c in (state.get("citations") or [])]
     docs = state.get("retrieved_docs") or []
+    tool_trace = state.get("tool_calls_trace") or []
 
-    # `sources` mirrors the baseline SourceChunk shape so the existing Angular
-    # citation rendering can consume an agentic answer unchanged.
-    #
-    # Deliberately empty when grading rejected the retrieved chunks: those
-    # documents did not support the answer, and listing them under a
-    # "not found" reply would imply the opposite.
-    answered = bool(state.get("is_relevant")) and int(state.get("api_calls_used", 0)) > 0
+    # Map retrieved docs to SourceChunk shape
+    answered = bool(state.get("is_relevant")) or (int(state.get("api_calls_used", 0)) > 0 and bool(answer))
     seen_files = set()
     sources = []
-    if answered:
-        for i, d in enumerate(docs):
-            fname = str(d.get("filename", "Unknown Document"))
-            if fname in seen_files:
-                continue
-            seen_files.add(fname)
-            sources.append(
-                SourceChunk(
-                    id=str(i),
-                    fileName=fname,
-                    chunkLocation=f"Chunk {d.get('chunk_index', i)}",
-                    score=f"{max(0.0, float(d.get('rrf_score', d.get('similarity', 0.0)))):.0%}",
-                )
+    for i, d in enumerate(docs):
+        fname = str(d.get("filename", "Unknown Document"))
+        if fname in seen_files:
+            continue
+        seen_files.add(fname)
+        sources.append(
+            SourceChunk(
+                id=str(i),
+                fileName=fname,
+                chunkLocation=f"Chunk {d.get('chunk_index', i)}",
+                score=f"{max(0.0, float(d.get('similarity', 0.8))):.0%}",
             )
+        )
 
     response = AgentChatMessage(
         role="ai",
@@ -141,64 +154,70 @@ async def agent_query(
         citations=citations,
         agentMode="agentic",
         intent=intent,
+        sessionId=str(session_uuid) if session_uuid else None,
         answered=answered,
         grounded=bool(state.get("grounded", False)),
         confidenceScore=float(state.get("confidence_score", 0.0)),
         apiCallsUsed=int(state.get("api_calls_used", 0)),
         embeddingCallsUsed=int(state.get("embedding_calls_used", 0)),
-        retryCount=int(state.get("retry_count", 0)),
+        retryCount=int(state.get("iteration_count", 0)),
         cached=False,
         graphPath=list(state.get("path") or []),
+        toolCalls=tool_trace,
         latencyMs=round(latency_ms, 1),
     )
 
-    # ── Log greetings without a query_logs row ────────────────────────────────
-    # A greeting is not a retrieval event. It is tagged and stored so the
-    # dashboard can count it, but it carries no judge evaluation and is excluded
-    # from retrieval metrics by the metrics service.
+    # ── Persist Session Messages to PostgreSQL ───────────────────────────────
+    if session_uuid:
+        db.add(SessionMessage(session_id=session_uuid, role="user", content=req.query))
+        db.add(SessionMessage(
+            session_id=session_uuid,
+            role="assistant",
+            content=answer,
+            tool_calls=tool_trace,
+        ))
+
+    method = "agentic+rewriter" if state.get("cleaned_query") and state.get("cleaned_query") != req.query else "agentic_tool_react"
     log = QueryLog(
         query=req.query,
         answer=answer,
         sources=[s.model_dump() for s in sources],
-        retrieval_method="agentic_greeting" if intent == "greeting" else "agentic_hybrid",
+        retrieval_method=method,
         latency_ms=latency_ms,
         agent_mode="agentic",
         intent=intent,
     )
     db.add(log)
-    await db.flush()
+    await db.commit()
     response.queryLogId = str(log.id)
 
-    # ── Judge only real retrieval answers ─────────────────────────────────────
-    # Sending a canned greeting to the judge would spend quota grading a string
-    # that was never generated from documents.
+    # ── Judge real answers asynchronously ────────────────────────────────────
     should_judge = (
         intent == "retrieval"
-        and bool(docs)
-        and bool(state.get("is_relevant"))
+        and bool(answer)
         and int(state.get("api_calls_used", 0)) > 0
+        and not answer.startswith("Security Alert")
     )
     if should_judge:
-        context = "\n\n---\n\n".join(str(d.get("text", "")) for d in docs)
+        context_preview = "\n\n---\n\n".join(str(d.get("text", "")) for d in docs) if docs else str(tool_trace)
         background_tasks.add_task(
             _call_judge,
             query_log_id=str(log.id),
             query=req.query,
             answer=answer,
-            context=context,
+            context=context_preview,
         )
 
-    # Only cache answers actually grounded in documents. Caching a rate-limit
-    # notice or a "not found" would serve a transient failure for 5 minutes.
-    if state.get("grounded") and intent == "retrieval" and not state.get("error"):
-        cache.set(cache_key, response, vector=query_vector)
+    # Cache standalone verified answers (only when no session history involved)
+    if not history and state.get("grounded") and intent == "retrieval" and not state.get("error"):
+        cache.set(cache_key, response)
 
     logger.info(
-        "[agent] intent=%s llm_calls=%d embed_calls=%d retries=%d grounded=%s %.0fms path=%s",
+        "[agent] session=%s intent=%s llm_calls=%d tools_used=%d grounded=%s %.0fms path=%s",
+        str(session_uuid)[:8] if session_uuid else "none",
         intent,
         response.apiCallsUsed,
-        response.embeddingCallsUsed,
-        response.retryCount,
+        len(tool_trace),
         response.grounded,
         latency_ms,
         " -> ".join(response.graphPath),
@@ -209,25 +228,22 @@ async def agent_query(
 
 @router.get("/agent/health", tags=["agent"])
 async def agent_health():
-    """Liveness plus the live budget telemetry the spec's RPM checks rely on."""
+    """Liveness plus live telemetry."""
     return {
         "status": "ok",
         "service": "agentic-rag-service",
         "port": 8005,
         "model": GENERATION_MODEL,
-        "maxLlmCallsPerQuery": 1,
-        "maxRetries": MAX_RETRIES,
-        "retrieveTopK": RETRIEVE_TOP_K,
+        "paradigm": "ReAct Tool-Calling Agent",
+        "tools": ["search_knowledge_base", "query_database_metadata", "get_adjacent_chunks"],
+        "maxIterations": 2,
         "rateLimiter": get_rate_limiter().snapshot(),
         "cache": get_cache().stats(),
     }
 
 
 async def _call_judge(query_log_id: str, query: str, answer: str, context: str) -> None:
-    """
-    Background task — evaluates the agentic answer via the existing judge
-    service. Failure is non-critical and never surfaces to the user.
-    """
+    """Background task evaluating answer quality via judge_service (:8003)."""
     try:
         async with httpx.AsyncClient(timeout=30.0) as client:
             await client.post(

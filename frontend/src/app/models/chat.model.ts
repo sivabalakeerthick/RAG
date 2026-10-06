@@ -42,5 +42,7 @@ export interface ChatMessage {
   cached?: boolean;
   /** Ordered graph nodes visited, so the route taken is auditable in the UI. */
   graphPath?: string[];
+  toolCalls?: any[];
+  sessionId?: string;
   latencyMs?: number;
 }

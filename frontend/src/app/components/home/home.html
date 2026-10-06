@@ -33,7 +33,7 @@
         [disabled]="isLoading()"
         [attr.aria-pressed]="activeMode() === 'agentic'"
         (click)="setMode('agentic')"
-        title="LangGraph agent: intent routing, relevance grading, bounded retry, grounding verification">
+        title="Autonomous ReAct agent: tool calling, SQL metadata analytics, and multi-turn memory">
         <i class="fa-solid fa-brain"></i>
         <span>Agentic RAG</span>
       </button>
@@ -62,7 +62,16 @@
       @for (msg of messages(); track $index) {
         @if (msg.role === 'user') {
           <div class="message user-message">
-            <div class="message-bubble">{{ msg.content }}</div>
+            <div class="message-bubble">
+              <span class="user-content">{{ msg.content }}</span>
+              <button
+                type="button"
+                class="copy-btn user-copy-btn"
+                (click)="copyText(msg.content, 'user-' + $index)"
+                [title]="copiedId() === 'user-' + $index ? 'Copied!' : 'Copy question'">
+                <i class="fa-solid" [class.fa-check]="copiedId() === 'user-' + $index" [class.fa-copy]="copiedId() !== 'user-' + $index"></i>
+              </button>
+            </div>
           </div>
         } @else {
           <div class="message ai-card">
@@ -72,10 +81,20 @@
                    [class.fa-file-contract]="msg.agentMode !== 'agentic'"></i>
               </div>
               <span class="ai-name">CogniDoc Answer</span>
+
+              <!-- Copy Result Action -->
+              <button
+                type="button"
+                class="copy-btn ai-copy-btn"
+                (click)="copyText(msg.content, 'ai-' + $index)"
+                [title]="copiedId() === 'ai-' + $index ? 'Copied!' : 'Copy answer'">
+                <i class="fa-solid" [class.fa-check]="copiedId() === 'ai-' + $index" [class.fa-copy]="copiedId() !== 'ai-' + $index"></i>
+                <span>{{ copiedId() === 'ai-' + $index ? 'Copied' : 'Copy' }}</span>
+              </button>
             </div>
 
             <div class="ai-card-body">
-              <p>{{ msg.content }}</p>
+              <div class="ai-answer-content" [innerHTML]="formatMarkdown(msg.content)"></div>
 
               <!-- User Feedback Buttons (Thumbs Up / Down) -->
               @if (msg.queryLogId) {
@@ -105,24 +124,6 @@
                   </div>
                 </div>
               }
-
-              <!-- Source Citations Drawer — hidden for now, sources are not shown.
-              @if (msg.sources && msg.sources.length > 0) {
-                <div class="sources-container">
-                  <span class="sources-label">
-                    <i class="fa-solid fa-link"></i>
-                    Retrieved Knowledge Sources:
-                  </span>
-                  @for (source of msg.sources; track source.id) {
-                    <div class="source-info">
-                        <i class="fa-solid fa-file-pdf"></i>
-                        <span>{{ source.fileName }}</span>
-                    </div>
-                  }
-                </div>
-              }
-              -->
-
             </div>
           </div>
         }
@@ -140,14 +141,29 @@
         </div>
       }
 
-      <!-- Error State -->
+      <!-- Error State with Retry Button -->
       @if (errorMessage(); as error) {
         <div class="message ai-card error-card">
           <div class="ai-card-header">
             <div class="ai-badge error">
               <i class="fa-solid fa-circle-exclamation"></i>
             </div>
-            <span class="ai-name">{{ error }}</span>
+            <span class="ai-name">Request Failed</span>
+
+            @if (lastFailedQuery()) {
+              <button
+                type="button"
+                class="retry-btn"
+                (click)="retryQuery()"
+                [disabled]="isLoading()"
+                title="Retry sending this question">
+                <i class="fa-solid fa-arrow-rotate-right" [class.fa-spin]="isLoading()"></i>
+                <span>Retry</span>
+              </button>
+            }
+          </div>
+          <div class="ai-card-body error-body">
+            <p>{{ error }}</p>
           </div>
         </div>
       }
@@ -163,9 +179,41 @@
         (keyup.enter)="onSearch()"
         [disabled]="isLoading()" />
 
-      <button class="send-btn" (click)="onSearch()" [disabled]="!searchQuery().trim() || isLoading()">
-        <i class="fa-solid fa-paper-plane"></i>
-      </button>
+      <div class="input-actions">
+        <!-- Clear Chat Button -->
+        @if (messages().length > 0) {
+          <button
+            type="button"
+            class="action-btn clear-btn"
+            (click)="clearChat()"
+            [disabled]="isLoading()"
+            title="Clear conversation history">
+            <i class="fa-solid fa-trash-can"></i>
+            <span>Clear</span>
+          </button>
+        }
+
+        <!-- New Chat Button -->
+        <button
+          type="button"
+          class="action-btn new-chat-btn"
+          (click)="newChat()"
+          [disabled]="isLoading()"
+          title="Start fresh conversation session">
+          <i class="fa-solid fa-plus"></i>
+          <span>New</span>
+        </button>
+
+        <!-- Send Button -->
+        <button
+          type="button"
+          class="send-btn"
+          (click)="onSearch()"
+          [disabled]="!searchQuery().trim() || isLoading()"
+          title="Send question">
+          <i class="fa-solid fa-paper-plane"></i>
+        </button>
+      </div>
     </div>
   </main>
 </div>

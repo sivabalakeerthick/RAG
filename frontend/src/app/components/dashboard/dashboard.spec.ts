@@ -10,9 +10,13 @@ describe('Dashboard', () => {
 
   const mockDocService = {
     cachedDocuments: signal([]),
+    cachedCategories: signal([]),
     cachedMetrics: signal(null),
     cachedIndexHealth: signal(null),
     getDocuments: () => of([]),
+    getCategories: () => of([]),
+    createCategory: () => of({ id: '1', name: 'Test', documentCount: 0 }),
+    deleteCategory: () => of({ message: 'deleted', id: '1' }),
     getMetrics: () => of({
       indexedDocuments: 0,
       processingDocuments: 0,

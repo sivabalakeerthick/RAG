@@ -6,6 +6,15 @@ export interface DocumentFile {
   chunksCount: number;
   status: 'Indexed' | 'Processing';
   lastUpdated: string;
+  rawDate?: string;
+}
+
+export interface CategoryItem {
+  id: string;
+  name: string;
+  description?: string;
+  documentCount: number;
+  createdAt?: string;
 }
 
 export interface VectorChunk {

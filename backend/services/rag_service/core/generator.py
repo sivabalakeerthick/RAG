@@ -2,12 +2,14 @@
 LangChain Gemini answer generator.
 Uses an LCEL chain with ChatPromptTemplate, ChatGoogleGenerativeAI, and StrOutputParser.
 """
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_google_genai import ChatGoogleGenerativeAI
 
 from shared.config import settings
 from shared.gemini_key_manager import get_gemini_api_key
+from shared.security_guard import sanitize_context_text
 from shared.ssl_config import google_client_args
 
 _SYSTEM_PROMPT = """\
@@ -55,14 +57,16 @@ def _get_generator_chain():
 
 
 def build_context_from_chunks(chunks: list[dict], max_chars: int = 12000) -> str:
-    """Build formatted context string safely at chunk boundaries."""
+    """Build formatted context string safely at chunk boundaries with prompt delimiter sanitization."""
     blocks = []
     current_len = 0
     for i, c in enumerate(chunks):
         fname = c.get("filename", "Unknown Document")
         c_idx = c.get("chunk_index", i)
         header = f"[Document: {fname} | Chunk {c_idx}]"
-        text = c.get("text", "")
+        raw_text = c.get("text", "")
+        # Sanitize against delimiter breakout or indirect injection tags
+        text = sanitize_context_text(raw_text)
         block = f"{header}\n{text}"
         if current_len + len(block) > max_chars:
             break
@@ -71,16 +75,39 @@ def build_context_from_chunks(chunks: list[dict], max_chars: int = 12000) -> str
     return "\n\n---\n\n".join(blocks)
 
 
-async def generate_answer(question: str, context: str | list[dict]) -> str:
-    """Generate a grounded answer using LangChain LCEL chain."""
+async def generate_answer(
+    question: str,
+    context: str | list[dict],
+    history: list[dict] | None = None,
+) -> str:
+    """Generate a grounded answer with conversation history awareness."""
     if isinstance(context, list):
         context_str = build_context_from_chunks(context)
     else:
-        context_str = str(context)[:12000]
+        context_str = sanitize_context_text(str(context)[:12000])
 
-    chain = _get_generator_chain()
-    response = await chain.ainvoke({
-        "question": question,
-        "context": context_str,
-    })
+    model = ChatGoogleGenerativeAI(
+        model=settings.GEMINI_GENERATION_MODEL,
+        google_api_key=get_gemini_api_key(),
+        temperature=0.0,
+        max_output_tokens=1024,
+        client_args=google_client_args(),
+    )
+
+    messages = [SystemMessage(content=_SYSTEM_PROMPT)]
+    if history:
+        for m in history[-4:]:
+            role = m.get("role")
+            content = (m.get("content") or "").strip()
+            if not content:
+                continue
+            if role in ("user", "human"):
+                messages.append(HumanMessage(content=content))
+            elif role in ("assistant", "ai"):
+                # Truncate assistant history turn so context focus remains on retrieved chunks
+                messages.append(AIMessage(content=content[:500]))
+
+    messages.append(HumanMessage(content=_HUMAN_PROMPT.format(question=question, context=context_str)))
+
+    response = await (model | StrOutputParser()).ainvoke(messages)
     return response.strip()

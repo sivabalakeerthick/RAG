@@ -19,6 +19,7 @@ Concurrency guarantee:
     overlapping requests (e.g. a double-clicked "Re-index") run one after the
     other instead of interleaving and each inserting its own copy of the chunks.
 """
+import hashlib
 import logging
 import os
 import uuid
@@ -28,8 +29,10 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from shared.db.postgres import Chunk, Document, get_db
+from shared.db.postgres import Category, Chunk, Document, get_db
 from shared.models.document import (
+    CategoryCreate,
+    CategoryItem,
     DocumentFile,
     DocumentMetadataUpdate,
     IndexHealth,
@@ -37,6 +40,7 @@ from shared.models.document import (
 )
 from services.document_service.core.chunker import SUPPORTED_TYPES, chunk_document
 from services.document_service.core.embedder import embed_texts
+from shared.security_guard import scan_document_chunk_for_injection
 from services.document_service.core.indexer import (
     add_to_chroma,
     count_all_vectors,
@@ -62,6 +66,7 @@ def _fmt_doc(doc: Document, chunks_count: int | None = None) -> DocumentFile:
     in the table always comes from the same source as the dashboard's total.
     """
     updated = doc.updated_at or doc.created_at
+    raw_date = updated.isoformat() if isinstance(updated, datetime) else str(updated)
     return DocumentFile(
         id=str(doc.id),
         name=doc.name,
@@ -70,6 +75,7 @@ def _fmt_doc(doc: Document, chunks_count: int | None = None) -> DocumentFile:
         chunksCount=doc.chunks_count if chunks_count is None else chunks_count,
         status="Indexed" if doc.status == "Indexed" else "Processing",
         lastUpdated=updated.strftime("%b %d, %Y") if isinstance(updated, datetime) else str(updated),
+        rawDate=raw_date,
     )
 
 
@@ -107,6 +113,95 @@ async def list_documents(db: AsyncSession = Depends(get_db)):
     counts = {doc_id: count for doc_id, count in counts_result.all()}
 
     return [_fmt_doc(d, counts.get(d.id, 0)) for d in docs]
+
+
+# ── CATEGORIES ────────────────────────────────────────────────────────────────
+
+@router.get("/documents/categories", response_model=list[CategoryItem], tags=["categories"])
+async def list_categories(db: AsyncSession = Depends(get_db)):
+    """List all knowledge categories with live document counts."""
+    cat_res = await db.execute(select(Category).order_by(Category.name.asc()))
+    categories = cat_res.scalars().all()
+
+    counts_res = await db.execute(
+        select(Document.category, func.count(Document.id)).group_by(Document.category)
+    )
+    doc_counts = {cat_name: count for cat_name, count in counts_res.all()}
+
+    return [
+        CategoryItem(
+            id=str(c.id),
+            name=c.name,
+            description=c.description,
+            documentCount=doc_counts.get(c.name, 0),
+            createdAt=c.created_at.strftime("%b %d, %Y") if isinstance(c.created_at, datetime) else str(c.created_at),
+        )
+        for c in categories
+    ]
+
+
+@router.post("/documents/categories", response_model=CategoryItem, status_code=201, tags=["categories"])
+async def create_category(payload: CategoryCreate, db: AsyncSession = Depends(get_db)):
+    """Create a new knowledge category for document classification."""
+    name = payload.name.strip()
+    if not name:
+        raise HTTPException(status_code=400, detail="Category name cannot be empty.")
+
+    # Check for case-insensitive duplicate
+    existing = await db.execute(
+        select(Category).where(func.lower(Category.name) == name.lower())
+    )
+    if existing.scalar_one_or_none():
+        raise HTTPException(status_code=409, detail=f"Category '{name}' already exists.")
+
+    new_cat = Category(
+        name=name,
+        description=payload.description.strip() if payload.description else None,
+    )
+    db.add(new_cat)
+    await db.commit()
+    await db.refresh(new_cat)
+
+    logger.info("Created new category '%s' (id=%s)", new_cat.name, new_cat.id)
+    return CategoryItem(
+        id=str(new_cat.id),
+        name=new_cat.name,
+        description=new_cat.description,
+        documentCount=0,
+        createdAt=new_cat.created_at.strftime("%b %d, %Y") if isinstance(new_cat.created_at, datetime) else str(new_cat.created_at),
+    )
+
+
+@router.delete("/documents/categories/{cat_id}", tags=["categories"])
+async def delete_category(cat_id: str, db: AsyncSession = Depends(get_db)):
+    """Delete a category only if no documents are currently assigned to it."""
+    cat_uuid = _parse_uuid(cat_id)
+    cat_res = await db.execute(select(Category).where(Category.id == cat_uuid))
+    category = cat_res.scalar_one_or_none()
+    if not category:
+        raise HTTPException(status_code=404, detail="Category not found.")
+
+    # Guard: check if any documents are actively assigned to this category
+    doc_count_res = await db.execute(
+        select(func.count(Document.id)).where(Document.category == category.name)
+    )
+    doc_count = doc_count_res.scalar() or 0
+    if doc_count > 0:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"Cannot delete category '{category.name}' because {doc_count} document(s) "
+                "are currently assigned to it. Please reassign or delete these documents first."
+            ),
+        )
+
+    cat_name = category.name
+    await db.delete(category)
+    await db.commit()
+    logger.info("Deleted category '%s' (id=%s)", cat_name, cat_id)
+
+    return {"message": f"Category '{cat_name}' successfully deleted.", "id": str(cat_id)}
+
 
 
 # ── INDEX HEALTH (PostgreSQL ↔ ChromaDB reconciliation) ───────────────────────
@@ -164,6 +259,22 @@ async def upload_document(
     if size_bytes / (1024 * 1024) > settings.MAX_UPLOAD_SIZE_MB:
         raise HTTPException(status_code=413, detail=f"File too large. Max {settings.MAX_UPLOAD_SIZE_MB} MB.")
 
+    # ── Duplicate file detection (SHA-256 content hash) ───────────────────────
+    content_hash = hashlib.sha256(raw).hexdigest()
+    existing_result = await db.execute(
+        select(Document).where(Document.content_hash == content_hash)
+    )
+    existing_doc = existing_result.scalar_one_or_none()
+    if existing_doc:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                f"Duplicate document detected. This file is identical to "
+                f"'{existing_doc.name}' (category: {existing_doc.category}), "
+                f"which is already indexed with {existing_doc.chunks_count} chunks."
+            ),
+        )
+
     # ── Save file to disk ─────────────────────────────────────────────────────
     safe_name = f"{uuid.uuid4()}_{file.filename}"
     file_path = os.path.join(settings.UPLOAD_DIR, safe_name)
@@ -178,6 +289,7 @@ async def upload_document(
         category=category,
         status="Processing",
         chunks_count=0,
+        content_hash=content_hash,
     )
     db.add(doc)
     await db.flush()
@@ -189,6 +301,29 @@ async def upload_document(
         chunks = chunk_document(file_path, file.content_type)
         if not chunks:
             raise ValueError("No text could be extracted from the document.")
+
+        # ── Phase 2b: Scan for Indirect Prompt Injections (Poisoned Documents) 
+        for idx, c in enumerate(chunks):
+            chunk_text = c.get("text", "")
+            is_malicious, pattern = scan_document_chunk_for_injection(chunk_text)
+            if is_malicious:
+                if os.path.exists(file_path):
+                    try:
+                        os.remove(file_path)
+                    except Exception:
+                        pass
+                await db.rollback()
+                logger.warning(
+                    "[security] Poisoned document upload blocked: '%s' section %d matched %r",
+                    file.filename, idx + 1, pattern,
+                )
+                raise HTTPException(
+                    status_code=400,
+                    detail=(
+                        f"Security Alert: Document upload rejected. Indirect prompt injection or "
+                        f"instruction override pattern detected in section {idx + 1} ('{pattern}')."
+                    ),
+                )
 
         texts = [c["text"] for c in chunks]
 

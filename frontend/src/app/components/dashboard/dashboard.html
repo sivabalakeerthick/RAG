@@ -15,10 +15,17 @@
         <p>Manage enterprise document ingestion, vector indexes, and system query performance.</p>
       </div>
 
-      <button class="action-btn primary-btn" (click)="openUploadModal()">
-        <i class="fa-solid fa-cloud-arrow-up"></i>
-        Upload New Document
-      </button>
+      <div class="header-action-group">
+        <button class="action-btn secondary-btn" (click)="openCategoryModal()" title="Create or delete knowledge categories">
+          <i class="fa-solid fa-tags"></i>
+          Manage Categories
+        </button>
+
+        <button class="action-btn primary-btn" (click)="openUploadModal()">
+          <i class="fa-solid fa-cloud-arrow-up"></i>
+          Upload New Document
+        </button>
+      </div>
     </section>
 
     <!-- Top Metrics Cards -->
@@ -183,24 +190,96 @@
         </div>
 
         <div class="header-controls">
-          <div class="search-filter">
-            <i class="fa-solid fa-magnifying-glass"></i>
-            <input
-              type="text"
-              placeholder="Filter documents..."
-              [ngModel]="filterQuery()"
-              (ngModelChange)="filterQuery.set($event)" />
-          </div>
-
           <button
             class="icon-btn refresh"
-            title="Refresh documents and metrics"
+            title="Refresh documents, categories, and metrics"
             (click)="refreshDashboard()"
             [disabled]="isRefreshing()">
             <i class="fa-solid fa-arrows-rotate" [class.spin]="isRefreshing()"></i>
           </button>
         </div>
       </div>
+
+      <!-- Multi-Filter Toolbar: File Name, Category, Date Range -->
+      <div class="filter-toolbar">
+        <!-- 1. Filter by File Name -->
+        <div class="filter-control search-filter">
+          <i class="fa-solid fa-magnifying-glass"></i>
+          <input
+            type="text"
+            placeholder="Search by file name..."
+            [ngModel]="nameFilter()"
+            (ngModelChange)="nameFilter.set($event)" />
+          @if (nameFilter()) {
+            <button type="button" class="clear-input-btn" (click)="nameFilter.set('')" title="Clear file name">
+              <i class="fa-solid fa-xmark"></i>
+            </button>
+          }
+        </div>
+
+        <!-- 2. Filter by Category -->
+        <div class="filter-control category-filter">
+          <i class="fa-solid fa-tag"></i>
+          <select [ngModel]="categoryFilter()" (ngModelChange)="categoryFilter.set($event)">
+            <option value="all">All Categories ({{ documents().length }})</option>
+            @for (cat of categories(); track cat.id) {
+              <option [value]="cat.name">{{ cat.name }} ({{ cat.documentCount }})</option>
+            }
+          </select>
+        </div>
+
+        <!-- 3. Filter by Date Range -->
+        <div class="filter-control date-range-group">
+          <div class="date-input-wrapper">
+            <span class="date-prefix">From:</span>
+            <input
+              type="date"
+              [ngModel]="startDateFilter()"
+              (ngModelChange)="startDateFilter.set($event)"
+              title="Filter from this date" />
+          </div>
+          <span class="date-separator">—</span>
+          <div class="date-input-wrapper">
+            <span class="date-prefix">To:</span>
+            <input
+              type="date"
+              [ngModel]="endDateFilter()"
+              (ngModelChange)="endDateFilter.set($event)"
+              title="Filter up to this date" />
+          </div>
+        </div>
+
+        <!-- 4. Reset Filters Button -->
+        @if (hasActiveFilters()) {
+          <button type="button" class="reset-filter-btn" (click)="resetFilters()" title="Reset all active filters">
+            <i class="fa-solid fa-filter-circle-xmark"></i>
+            <span>Reset Filters</span>
+          </button>
+        }
+      </div>
+
+      <!-- Filter Results Summary Banner -->
+      @if (hasActiveFilters()) {
+        <div class="filter-results-bar">
+          <span class="results-count">
+            Showing <strong>{{ filteredDocuments().length }}</strong> of <strong>{{ documents().length }}</strong> documents
+          </span>
+          <div class="filter-criteria-tags">
+            @if (nameFilter()) {
+              <span class="criterion-chip">File: "{{ nameFilter() }}"</span>
+            }
+            @if (categoryFilter() !== 'all') {
+              <span class="criterion-chip">Category: "{{ categoryFilter() }}"</span>
+            }
+            @if (startDateFilter()) {
+              <span class="criterion-chip">From: {{ startDateFilter() }}</span>
+            }
+            @if (endDateFilter()) {
+              <span class="criterion-chip">To: {{ endDateFilter() }}</span>
+            }
+          </div>
+        </div>
+      }
 
       <div class="table-wrapper">
         @if (isLoadingDocs()) {
@@ -269,7 +348,18 @@
               }
               @if (filteredDocuments().length === 0 && !isLoadingDocs()) {
                 <tr>
-                  <td colspan="6" class="empty-state">No documents match your filter.</td>
+                  <td colspan="6" class="empty-state">
+                    <div class="empty-filter-wrapper">
+                      <i class="fa-solid fa-file-circle-question"></i>
+                      <p>No documents match your filter criteria.</p>
+                      @if (hasActiveFilters()) {
+                        <button type="button" class="action-btn secondary-btn reset-empty-btn" (click)="resetFilters()">
+                          <i class="fa-solid fa-filter-circle-xmark"></i>
+                          <span>Clear all filters</span>
+                        </button>
+                      }
+                    </div>
+                  </td>
                 </tr>
               }
             </tbody>
@@ -341,8 +431,8 @@
           <div class="form-group">
             <label for="categorySelect">Target Knowledge Category</label>
             <select id="categorySelect" [(ngModel)]="selectedCategory">
-              @for (cat of categories; track cat.value) {
-                <option [value]="cat.value">{{ cat.label }}</option>
+              @for (cat of categories(); track cat.id) {
+                <option [value]="cat.name">{{ cat.name }}</option>
               }
             </select>
           </div>
@@ -533,6 +623,132 @@
           }
         </div>
       </aside>
+    </div>
+  }
+
+  <!-- Category Management Modal -->
+  @if (isCategoryModalOpen()) {
+    <div class="modal-backdrop" (click)="closeCategoryModal()">
+      <div class="modal-card category-modal" (click)="$event.stopPropagation()">
+        <div class="modal-header">
+          <div class="header-title">
+            <div class="icon-badge">
+              <i class="fa-solid fa-tags"></i>
+            </div>
+            <div>
+              <h2>Manage Knowledge Categories</h2>
+              <p>Create new categories for document classification or delete unused categories.</p>
+            </div>
+          </div>
+          <button class="close-btn" (click)="closeCategoryModal()" aria-label="Close modal">
+            <i class="fa-solid fa-xmark"></i>
+          </button>
+        </div>
+
+        <div class="modal-body">
+          <!-- Create Category Card -->
+          <div class="create-cat-section">
+            <label class="section-label"><i class="fa-solid fa-plus"></i> Create New Category</label>
+            <div class="create-cat-form">
+              <div class="form-inputs">
+                <input
+                  type="text"
+                  class="cat-input"
+                  placeholder="Category Name (e.g. Finance, Legal & Contracts, Marketing)"
+                  [ngModel]="newCategoryName()"
+                  (ngModelChange)="newCategoryName.set($event)"
+                  (keyup.enter)="createCategory()"
+                  [disabled]="isCreatingCategory()" />
+                <input
+                  type="text"
+                  class="cat-input desc-input"
+                  placeholder="Short Description (optional)"
+                  [ngModel]="newCategoryDescription()"
+                  (ngModelChange)="newCategoryDescription.set($event)"
+                  (keyup.enter)="createCategory()"
+                  [disabled]="isCreatingCategory()" />
+              </div>
+              <button
+                type="button"
+                class="action-btn primary-btn add-cat-btn"
+                (click)="createCategory()"
+                [disabled]="!newCategoryName().trim() || isCreatingCategory()">
+                @if (isCreatingCategory()) {
+                  <i class="fa-solid fa-circle-notch spin"></i>
+                  <span>Adding...</span>
+                } @else {
+                  <i class="fa-solid fa-folder-plus"></i>
+                  <span>Add Category</span>
+                }
+              </button>
+            </div>
+          </div>
+
+          <!-- Error Message if any -->
+          @if (categoryActionError()) {
+            <div class="modal-inline-error">
+              <i class="fa-solid fa-circle-exclamation"></i>
+              <span>{{ categoryActionError() }}</span>
+            </div>
+          }
+
+          <!-- Existing Categories List -->
+          <div class="cat-list-section">
+            <div class="list-section-header">
+              <label class="section-label">
+                <i class="fa-solid fa-list-check"></i>
+                Active Categories ({{ categories().length }})
+              </label>
+              @if (isLoadingCategories()) {
+                <span class="cat-loading"><i class="fa-solid fa-circle-notch spin"></i> Updating...</span>
+              }
+            </div>
+
+            <div class="categories-list">
+              @for (cat of categories(); track cat.id) {
+                <div class="category-item-card">
+                  <div class="cat-item-info">
+                    <div class="cat-name-row">
+                      <span class="cat-title">{{ cat.name }}</span>
+                      <span class="doc-count-pill" [class.has-docs]="cat.documentCount > 0">
+                        <i class="fa-solid fa-file"></i>
+                        {{ cat.documentCount }} {{ cat.documentCount === 1 ? 'file' : 'files' }}
+                      </span>
+                    </div>
+                    @if (cat.description) {
+                      <p class="cat-desc">{{ cat.description }}</p>
+                    }
+                  </div>
+
+                  <div class="cat-item-actions">
+                    <button
+                      type="button"
+                      class="icon-btn delete-cat-btn"
+                      [disabled]="cat.documentCount > 0 || deletingCategoryId() === cat.id"
+                      [title]="cat.documentCount > 0 ? 'Cannot delete: ' + cat.documentCount + ' document(s) assigned to this category' : 'Delete category'"
+                      (click)="deleteCategory(cat)">
+                      @if (deletingCategoryId() === cat.id) {
+                        <i class="fa-solid fa-circle-notch spin"></i>
+                      } @else {
+                        <i class="fa-solid fa-trash-can"></i>
+                      }
+                    </button>
+                  </div>
+                </div>
+              }
+              @if (categories().length === 0 && !isLoadingCategories()) {
+                <div class="empty-cat-state">
+                  <p>No categories found. Create your first category above!</p>
+                </div>
+              }
+            </div>
+          </div>
+        </div>
+
+        <div class="modal-footer">
+          <button type="button" class="secondary-btn" (click)="closeCategoryModal()">Done</button>
+        </div>
+      </div>
     </div>
   }
 

@@ -57,6 +57,7 @@ class Document(Base):
     chunks_count = Column(Integer, default=0)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    content_hash = Column(String(64), nullable=True)   # SHA-256 file dedup
 
 
 class Chunk(Base):
@@ -97,6 +98,38 @@ class QueryLog(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
+class ChatSession(Base):
+    """Multi-turn conversation session — shared by both RAG pipelines."""
+    __tablename__ = "chat_sessions"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    agent_mode = Column(String(20), nullable=False, default="standard")  # standard | agentic
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class SessionMessage(Base):
+    """Individual message within a chat session (sliding window of last 4 used by LLM)."""
+    __tablename__ = "session_messages"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    session_id = Column(UUID(as_uuid=True), ForeignKey("chat_sessions.id", ondelete="CASCADE"), nullable=False)
+    role = Column(String(20), nullable=False)        # 'user' | 'assistant'
+    content = Column(Text, nullable=False)
+    tool_calls = Column(JSON, nullable=True)          # Agentic audit trail
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class Category(Base):
+    """Knowledge Base categories created and managed by administrators."""
+    __tablename__ = "categories"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, server_default=text("gen_random_uuid()"))
+    name = Column(String(128), unique=True, nullable=False)
+    description = Column(String(256), nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow, server_default=text("CURRENT_TIMESTAMP"))
+
+
 # ── Table Creation ────────────────────────────────────────────────────────────
 
 # Idempotent column additions. create_all() only creates missing *tables*, it
@@ -114,6 +147,35 @@ _MIGRATIONS = (
     "CREATE INDEX IF NOT EXISTS idx_chunks_document_id ON chunks(document_id);",
     "CREATE INDEX IF NOT EXISTS idx_documents_category ON documents(category);",
     "CREATE INDEX IF NOT EXISTS idx_chunks_fts ON chunks USING gin(to_tsvector('english', text));",
+    # ── Agentic RAG v2.0: File deduplication & session storage ────────────────
+    "ALTER TABLE documents ADD COLUMN IF NOT EXISTS content_hash VARCHAR(64);",
+    "CREATE INDEX IF NOT EXISTS idx_documents_content_hash ON documents(content_hash);",
+    "CREATE INDEX IF NOT EXISTS idx_session_messages_session_id ON session_messages(session_id);",
+    # Prune stale sessions older than 30 days (safe to re-run)
+    "DELETE FROM chat_sessions WHERE updated_at < NOW() - INTERVAL '30 days';",
+    # ── Category Management ──────────────────────────────────────────────────
+    "CREATE TABLE IF NOT EXISTS categories ("
+    "    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),"
+    "    name VARCHAR(128) UNIQUE NOT NULL,"
+    "    description VARCHAR(256),"
+    "    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP"
+    ");",
+    "ALTER TABLE categories ALTER COLUMN id SET DEFAULT gen_random_uuid();",
+    "ALTER TABLE categories ALTER COLUMN created_at SET DEFAULT CURRENT_TIMESTAMP;",
+    "CREATE INDEX IF NOT EXISTS idx_categories_name ON categories(name);",
+    # Seed default categories with explicit UUIDs
+    "INSERT INTO categories (id, name, description) VALUES "
+    "(gen_random_uuid(), 'Security & Policy', 'Security & Compliance'), "
+    "(gen_random_uuid(), 'IT Support', 'IT & Infrastructure'), "
+    "(gen_random_uuid(), 'Engineering', 'Engineering & API Specs'), "
+    "(gen_random_uuid(), 'HR & Operations', 'HR & Legal Policies') "
+    "ON CONFLICT (name) DO NOTHING;",
+    # Seed any custom categories already in documents table
+    "INSERT INTO categories (id, name, description) "
+    "SELECT gen_random_uuid(), category, category || ' Category' "
+    "FROM documents "
+    "WHERE category IS NOT NULL AND category != '' "
+    "ON CONFLICT (name) DO NOTHING;",
 )
 
 
